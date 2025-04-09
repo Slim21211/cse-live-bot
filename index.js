@@ -21,7 +21,7 @@ bot.start((ctx) => {
 
 bot.action(/select_(.+)/, async (ctx) => {
   const topicKey = ctx.match[1];
-  const topicName = topics[topicKey]; // Получаем тему на русском
+  const topicName = topics[topicKey];
 
   userStates.set(ctx.from.id, {
     topic: topicName,
