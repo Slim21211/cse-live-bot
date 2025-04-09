@@ -16,7 +16,7 @@ const userStates = new Map();
 
 bot.start((ctx) => {
   userStates.delete(ctx.from.id);
-  return ctx.reply('Привет! Выбери тип предложения для канала:', topicButtons);
+  return ctx.reply('Привет! Сюда ты можешь прислать свою новость, включая текст, фотографии или видео (Укажи город, отдел, подразделение):', topicButtons);
 });
 
 bot.action(/select_(.+)/, async (ctx) => {
