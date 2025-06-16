@@ -1,13 +1,15 @@
-const { Markup } = require('telegraf');
+import { Markup } from 'telegraf'
 
-const topics = {
+export const topics = {
   news: 'Новость',
   contest: 'Конкурс',
   question: 'Вопрос',
   idea: 'Идея',
-};
+} as const;
 
-const topicButtons = Markup.inlineKeyboard([
+export type TopicKey = keyof typeof topics;
+
+export const topicButtons = Markup.inlineKeyboard([
   [
     Markup.button.callback(topics.news, 'select_news'),
     Markup.button.callback(topics.contest, 'select_contest')
@@ -18,17 +20,10 @@ const topicButtons = Markup.inlineKeyboard([
   ],
 ]);
 
-const cancelButton = Markup.inlineKeyboard([
+export const cancelButton = Markup.inlineKeyboard([
   [Markup.button.callback('❌ Отмена', 'cancel')]
 ]);
 
-const sendMoreButton = Markup.inlineKeyboard([
+export const sendMoreButton = Markup.inlineKeyboard([
   [Markup.button.callback('📨 Отправить ещё новость', 'send_more')]
 ]);
-
-module.exports = {
-  topicButtons,
-  cancelButton,
-  sendMoreButton,
-  topics
-};
