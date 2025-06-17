@@ -68,7 +68,7 @@ bot.action('cancel', async (ctx) => {
   }
 });
 
-bot.on(['text', 'photo', 'video'], async (ctx) => {
+bot.on(['text', 'photo', 'video', 'document'], async (ctx) => {
   const state = userStates.get(ctx.from.id);
 
   if (!state) {
@@ -104,6 +104,12 @@ bot.on(['text', 'photo', 'video'], async (ctx) => {
     const caption = `${baseCaption}\n\n${message.caption || ''}`;
     for (const adminId of ADMIN_IDS) {
       await ctx.telegram.sendVideo(adminId, fileId, { caption });
+    }
+  } else if ('document' in message) {
+    const fileId = message.document.file_id;
+    const caption = `${baseCaption}\n\n${message.caption || ''}`;
+    for (const adminId of ADMIN_IDS) {
+      await ctx.telegram.sendDocument(adminId, fileId, { caption });
     }
   }
 
