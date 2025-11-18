@@ -1,25 +1,31 @@
 {
   "name": "cse-live-bot",
+  "private": true,
   "version": "1.0.0",
-  "main": "bot.ts",
+  "type": "module",
   "scripts": {
-    "dev": "nodemon bot.ts",
-    "deploy": "vercel --prod",
-    "set-webhook": "ts-node scripts/setWebhook.ts"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "bot": "MODE=local tsx api/bot.ts",
+    "dev:all": "concurrently \"npm run dev\" \"npm run bot\""
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@vercel/node": "^5.2.2",
+    "@supabase/supabase-js": "^2.83.0",
+    "@vercel/node": "^5.3.26",
     "dotenv": "^16.5.0",
-    "telegraf": "^4.16.3",
-    "tg_bot_boil": "file:"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.21",
-    "nodemon": "^3.1.10",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "concurrently": "^9.2.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2"
   }
 }
