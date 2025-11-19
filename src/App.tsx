@@ -2,9 +2,7 @@ import { useEffect } from 'react';
 import './App.css';
 
 function App() {
-  // Вычисляем contestType один раз, не используя state
   useEffect(() => {
-    // Инициализация Telegram WebApp
     if (window.Telegram?.WebApp) {
       const tg = window.Telegram.WebApp;
       tg.ready();

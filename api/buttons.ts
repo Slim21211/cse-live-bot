@@ -31,22 +31,17 @@ export const sendMoreButton = Markup.inlineKeyboard([
 ]);
 
 export const contestTypeButtons = Markup.inlineKeyboard([
-  [
-    Markup.button.webApp(
-      '🎄 Детский новогодний конкурс',
-      `${webAppUrl}/kid_contest`
-    ),
-  ],
+  [Markup.button.webApp('🎄 Детский новогодний конкурс', `${webAppUrl}/child`)],
   [
     Markup.button.webApp(
       '✨ Командный новогодний конкурс',
-      `${webAppUrl}/team_contest`
+      `${webAppUrl}/team`
     ),
   ],
   [
     Markup.button.webApp(
       '⭐ Индивидуальный новогодний конкурс',
-      `${webAppUrl}/individual_contest`
+      `${webAppUrl}/individual`
     ),
   ],
   [Markup.button.callback('❌ Отмена', 'cancel')],
