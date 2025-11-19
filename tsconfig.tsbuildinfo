@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/fileupload/fileupload.tsx","./src/lib/supabase.ts","./src/pages/child/child.tsx","./src/pages/individual/individual.tsx","./src/pages/team/team.tsx","./src/types/contest.ts","./src/types/database.ts","./src/types/global.d.ts","./src/types/telegram.d.ts","./src/types/vite-env.d.ts"],"version":"5.9.3"}

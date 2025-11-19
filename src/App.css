@@ -1,85 +1,22 @@
 .app {
-  max-width: 100vw;
-  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, sans-serif;
+  background-color: var(--color-white);
 }
 
-h1 {
+.app h1 {
+  color: var(--color-brown);
   text-align: center;
-  color: #333;
-  margin-bottom: 30px;
+  font-size: 24px;
+  line-height: 1.4;
+  max-width: 600px;
 }
 
-.contest-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-label {
-  font-weight: 600;
-  color: #555;
-}
-
-input[type='text'],
-textarea {
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 16px;
-  font-family: inherit;
-}
-
-input[type='file'] {
-  padding: 8px;
-}
-
-button {
-  padding: 14px;
-  background-color: #0088cc;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-button:hover:not(:disabled) {
-  background-color: #0077b3;
-}
-
-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-.error {
-  padding: 12px;
-  background-color: #fee;
-  color: #c33;
-  border-radius: 8px;
-  text-align: center;
-}
-
-.file-preview {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #f5f5f5;
-  border-radius: 8px;
-}
-
-.file-preview img {
-  border-radius: 8px;
-  width: 100%;
-  max-width: 200px;
+@media (min-width: 768px) {
+  .app h1 {
+    font-size: 32px;
+  }
 }

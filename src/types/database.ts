@@ -1,52 +1,33 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export interface ChildContestSubmission {
+  id?: string;
+  full_name: string;
+  department: string;
+  city: string;
+  child_name: string;
+  title: string;
+  telegram_user_id?: number;
+  file_url: string;
+  created_at?: string;
+}
 
-export interface Database {
-  public: {
-    Tables: {
-      contest_submissions: {
-        Row: {
-          id: string;
-          name: string;
-          description: string | null;
-          photo_url: string;
-          contest_type: 'child' | 'team' | 'individual';
-          telegram_user_id: number | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          description?: string | null;
-          photo_url: string;
-          contest_type: 'child' | 'team' | 'individual';
-          telegram_user_id?: number | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          description?: string | null;
-          photo_url?: string;
-          contest_type?: 'child' | 'team' | 'individual';
-          telegram_user_id?: number | null;
-          created_at?: string;
-        };
-      };
-    };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      [_ in never]: never;
-    };
-    Enums: {
-      [_ in never]: never;
-    };
-  };
+export interface TeamContestSubmission {
+  id?: string;
+  full_name: string;
+  department: string;
+  city: string;
+  title: string;
+  telegram_user_id?: number;
+  file_url: string;
+  created_at?: string;
+}
+
+export interface IndividualContestSubmission {
+  id?: string;
+  full_name: string;
+  department: string;
+  city: string;
+  title: string;
+  telegram_user_id?: number;
+  file_url: string;
+  created_at?: string;
 }
