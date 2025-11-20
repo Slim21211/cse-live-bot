@@ -1,4 +1,4 @@
-import { ChangeEvent } from 'react';
+import { ChangeEvent, useState, useEffect } from 'react';
 
 interface FileUploadProps {
   file: File | null;
@@ -13,6 +13,26 @@ export default function FileUpload({
   disabled,
   accept = 'image/*,video/*,.pdf,.doc,.docx,.txt',
 }: FileUploadProps) {
+  // 1. Храним объектный URL в состоянии
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+
+  // 2. Создаем и очищаем URL при изменении файла
+  useEffect(() => {
+    if (file) {
+      // Создаем URL только один раз
+      const url = URL.createObjectURL(file);
+      setFileUrl(url);
+
+      // Очистка: когда компонент размонтируется или file изменится
+      return () => {
+        URL.revokeObjectURL(url);
+        setFileUrl(null); // Очищаем состояние
+      };
+    } else {
+      setFileUrl(null);
+    }
+  }, [file]); // Зависит только от объекта файла
+
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0] || null;
     onChange(selectedFile);
@@ -50,12 +70,13 @@ export default function FileUpload({
             <span>({(file.size / 1024 / 1024).toFixed(2)} МБ)</span>
           </div>
 
-          {file.type.startsWith('image/') && (
-            <img src={URL.createObjectURL(file)} alt="Preview" />
+          {/* 3. Используем мемоизированный fileUrl */}
+          {file.type.startsWith('image/') && fileUrl && (
+            <img src={fileUrl} alt="Preview" />
           )}
 
-          {file.type.startsWith('video/') && (
-            <video controls src={URL.createObjectURL(file)} />
+          {file.type.startsWith('video/') && fileUrl && (
+            <video controls src={fileUrl} />
           )}
         </div>
       )}

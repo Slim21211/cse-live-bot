@@ -12,10 +12,10 @@ export interface ChildContestSubmission {
 
 export interface TeamContestSubmission {
   id?: string;
-  full_name: string;
+  team_name: string;
   department: string;
   city: string;
-  title: string;
+  participants: string;
   telegram_user_id?: number;
   file_url: string;
   created_at?: string;

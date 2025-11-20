@@ -1,0 +1,55 @@
+.container {
+  padding: 16px 12px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.subtitle {
+  text-align: center;
+  color: #666;
+  margin: 12px 0 32px;
+  font-size: 16px;
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.card {
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.preview {
+  position: relative;
+  width: 100%;
+  height: 480px; // ← МЕНЯЙ ЭТУ ЦИФРУ: 420 / 480 / 520
+  background: #000;
+  flex-shrink: 0;
+}
+
+.info {
+  padding: 18px;
+  flex-grow: 1;
+}
+
+.title {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111;
+  line-height: 1.3;
+}
+
+.info p {
+  margin: 8px 0;
+  font-size: 15px;
+  color: #333;
+  line-height: 1.4;
+}
