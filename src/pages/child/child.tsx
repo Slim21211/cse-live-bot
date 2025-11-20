@@ -7,10 +7,10 @@ import '../../styles/form.scss';
 const CHUNK_SIZE = 8 * 1024 * 1024; // 8 МБ на часть
 const BACKEND_URL = 'https://justify-grill-manor-adaptation.trycloudflare.com'; // Ваш сервер
 
-// 🚀 НОВЫЕ КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
+// 🚀 КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
 const MAX_RETRIES = 10;
 const GLOBAL_TIMEOUT_MS = 60000; // Общий лимит времени на загрузку части: 60 секунд
-const FETCH_TIMEOUT_MS = 10000; // 10 секунд ожидания ответа
+const WARNING_PENDING_MS = 10000; // ⚠️ 20 секунд для показа плашки
 
 const Child = () => {
   const [fullName, setFullName] = useState('');
@@ -25,7 +25,6 @@ const Child = () => {
   );
   const [success, setSuccess] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  // ⚠️ НОВОЕ: Стейт для индикации нестабильности сети
   const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
@@ -38,19 +37,34 @@ const Child = () => {
     }
   }, []);
 
+  // 💡 Функция для обработки таймаута ожидания (ТОЛЬКО включает плашку)
+  const handlePendingTimeout = () => {
+    // ⭐️ ИСПРАВЛЕНО: Только включаем плашку. Прогресс-бар (setUploadProgress(1)) активируется отдельно, после upload-start.
+    setIsRetrying(true);
+  };
+
   const uploadFileMultipart = async (file: File, fileName: string) => {
     const fileSize = file.size;
     const numChunks = Math.ceil(fileSize / CHUNK_SIZE);
 
     // 1. Начинаем multipart upload
     let startRes: Response;
+    // ⚠️ ТАЙМЕР НА ПЕРВЫЙ ЗАПРОС
+    let pendingTimerId = setTimeout(
+      handlePendingTimeout,
+      WARNING_PENDING_MS
+    ) as unknown as number;
+
     try {
       startRes = await fetch(`${BACKEND_URL}/upload-start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: fileName, contentType: file.type }),
       });
+      clearTimeout(pendingTimerId);
+      setIsRetrying(false);
     } catch (e) {
+      clearTimeout(pendingTimerId);
       throw {
         user: 'Не удалось установить соединение с сервером для начала загрузки. Проверьте интернет.',
         log: `Network error during upload-start: ${e}`,
@@ -66,6 +80,8 @@ const Child = () => {
     }
 
     const { uploadId, key } = await startRes.json();
+    // ⭐️ ИСПРАВЛЕНО: Устанавливаем 1% здесь, чтобы прогресс-бар появился.
+    setUploadProgress(1);
 
     // 2. Загружаем каждую часть
     const parts: { PartNumber: number; ETag: string }[] = [];
@@ -83,15 +99,21 @@ const Child = () => {
       let attempt = 0;
       let success = false;
       let etag = '';
-      const startTime = Date.now(); // Время начала загрузки части
+      const startTime = Date.now();
 
       // 🚀 Цикл повторных попыток
       while (attempt < MAX_RETRIES && !success) {
         attempt++;
         const elapsedTime = Date.now() - startTime;
 
-        // ⚠️ Проверка общего лимита времени (60 секунд)
+        // ⚠️ ТАЙМЕР НА ЗАГРУЗКУ ЧАСТИ
+        pendingTimerId = setTimeout(
+          handlePendingTimeout,
+          WARNING_PENDING_MS
+        ) as unknown as number;
+
         if (elapsedTime > GLOBAL_TIMEOUT_MS) {
+          clearTimeout(pendingTimerId);
           throw {
             user: 'Не удалось завершить загрузку файла из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
             log: `Part ${partNumber} failed: Global timeout of ${GLOBAL_TIMEOUT_MS}ms exceeded.`,
@@ -104,6 +126,8 @@ const Child = () => {
             headers: { 'Content-Type': 'application/octet-stream' },
             body: chunk,
           });
+
+          clearTimeout(pendingTimerId);
 
           if (!uploadRes.ok) {
             if (uploadRes.status < 500) {
@@ -119,12 +143,14 @@ const Child = () => {
 
           const { etag: newEtag } = await uploadRes.json();
           etag = newEtag;
-          success = true; // Успех!
-          setIsRetrying(false); // Убираем предупреждение об ошибке
+          success = true;
+          setIsRetrying(false);
         } catch (error) {
+          clearTimeout(pendingTimerId);
+
           if ((error as any).fatal) throw error;
 
-          if (attempt === 1) setIsRetrying(true); // Показываем предупреждение
+          if (attempt === 1) setIsRetrying(true);
 
           console.warn(
             `Часть ${partNumber}: Ошибка при попытке ${attempt}.`,
@@ -132,14 +158,12 @@ const Child = () => {
           );
 
           if (attempt >= MAX_RETRIES) {
-            // ⚠️ НОВЫЙ ТЕКСТ ОШИБКИ
             throw {
               user: 'Не удалось завершить загрузку из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
               log: `Part ${partNumber} failed after ${MAX_RETRIES} retries. Last error: ${error}`,
             };
           }
 
-          // ⚠️ НОВАЯ ЛОГИКА ЗАДЕРЖКИ (Экспоненциальная с ограничением)
           const delay = Math.min(Math.pow(2, attempt) - 1, 60) * 1000;
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
@@ -149,18 +173,26 @@ const Child = () => {
       setUploadProgress(Math.round((partNumber / numChunks) * 100));
     }
 
-    // Сброс isRetrying, если вся загрузка завершилась успешно
     setIsRetrying(false);
 
     // 3. Завершаем multipart upload
     let completeRes: Response;
+    // ⚠️ ТАЙМЕР НА ЗАВЕРШАЮЩИЙ ЗАПРОС
+    pendingTimerId = setTimeout(
+      handlePendingTimeout,
+      WARNING_PENDING_MS
+    ) as unknown as number;
+
     try {
       completeRes = await fetch(`${BACKEND_URL}/upload-complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: key, uploadId, parts }),
       });
+      clearTimeout(pendingTimerId);
+      setIsRetrying(false);
     } catch (e) {
+      clearTimeout(pendingTimerId);
       throw {
         user: 'Загрузка частей завершена, но не удалось отправить команду на "сборку" файла. Проверьте интернет.',
         log: `Network error during upload-complete: ${e}`,
@@ -185,7 +217,7 @@ const Child = () => {
     setError(null);
     setSuccess(false);
     setUploadProgress(0);
-    setIsRetrying(false); // Сброс при старте
+    setIsRetrying(false);
 
     try {
       if (!file)
@@ -232,10 +264,17 @@ const Child = () => {
         setError({ user: customError.user, log: customError.log });
         console.error('Техническая ошибка:', customError.log);
       } else if (err instanceof Error) {
-        setError({
-          user: 'Произошла непредвиденная ошибка.',
-          log: err.message,
-        });
+        if (customError.name === 'TypeError') {
+          setError({
+            user: 'Не удалось установить соединение с сервером. Пожалуйста, проверьте интернет.',
+            log: `Initial network error: ${customError.name} - ${customError.message}`,
+          });
+        } else {
+          setError({
+            user: 'Произошла непредвиденная ошибка.',
+            log: err.message,
+          });
+        }
         console.error('Непредвиденная ошибка:', err.message);
       } else {
         setError({
@@ -245,7 +284,7 @@ const Child = () => {
       }
     } finally {
       setLoading(false);
-      setIsRetrying(false); // Сброс при завершении
+      setIsRetrying(false);
     }
   };
 
@@ -261,9 +300,6 @@ const Child = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="contest-form">
-          {/* ... (поля формы без изменений) ... */}
-          {/* ... (поля формы без изменений) ... */}
-
           <div className="form-group">
             <label htmlFor="fullName">
               ФИО <span className="required">*</span>
@@ -356,7 +392,7 @@ const Child = () => {
             </div>
           )}
 
-          {/* ⚠️ НОВОЕ: Уведомление о нестабильности соединения */}
+          {/* ⚠️ Уведомление о нестабильности соединения */}
           {uploadProgress > 0 && uploadProgress < 100 && isRetrying && (
             <div className="warning-message">
               Слабое соединение с интернетом, время загрузки может увеличиться.

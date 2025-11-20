@@ -7,9 +7,11 @@ import FileUpload from '../../components/fileUpload/fileUpload';
 const CHUNK_SIZE = 8 * 1024 * 1024; // 8 МБ на часть
 const BACKEND_URL = 'https://justify-grill-manor-adaptation.trycloudflare.com'; // Ваш сервер
 
-// 🚀 НОВЫЕ КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
+// 🚀 КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
 const MAX_RETRIES = 10;
 const GLOBAL_TIMEOUT_MS = 60000; // Общий лимит времени на загрузку части: 60 секунд
+// ⚠️ 20 секунд для показа плашки
+const WARNING_PENDING_MS = 10000;
 
 const Team = () => {
   const [teamName, setTeamName] = useState('');
@@ -35,19 +37,34 @@ const Team = () => {
     }
   }, []);
 
+  // 💡 Функция для обработки таймаута ожидания (ТОЛЬКО включает плашку)
+  const handlePendingTimeout = () => {
+    // ⭐️ ИСПРАВЛЕНО: Только включаем плашку. Прогресс-бар (setUploadProgress(1)) активируется отдельно, после upload-start.
+    setIsRetrying(true);
+  };
+
   const uploadFileMultipart = async (file: File, fileName: string) => {
     const fileSize = file.size;
     const numChunks = Math.ceil(fileSize / CHUNK_SIZE);
 
     // 1. Начинаем multipart upload
     let startRes: Response;
+    // ⚠️ ТАЙМЕР НА ПЕРВЫЙ ЗАПРОС
+    let pendingTimerId = setTimeout(
+      handlePendingTimeout,
+      WARNING_PENDING_MS
+    ) as unknown as number;
+
     try {
       startRes = await fetch(`${BACKEND_URL}/upload-start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: fileName, contentType: file.type }),
       });
+      clearTimeout(pendingTimerId);
+      setIsRetrying(false); // Успех: убираем плашку
     } catch (e) {
+      clearTimeout(pendingTimerId);
       throw {
         user: 'Не удалось установить соединение с сервером для начала загрузки. Проверьте интернет.',
         log: `Network error during upload-start: ${e}`,
@@ -63,6 +80,8 @@ const Team = () => {
     }
 
     const { uploadId, key } = await startRes.json();
+    // ⭐️ ИСПРАВЛЕНО: Устанавливаем 1% здесь, чтобы прогресс-бар появился.
+    setUploadProgress(1);
 
     // 2. Загружаем каждую часть
     const parts: { PartNumber: number; ETag: string }[] = [];
@@ -87,8 +106,14 @@ const Team = () => {
         attempt++;
         const elapsedTime = Date.now() - startTime;
 
-        // ⚠️ Проверка общего лимита времени (60 секунд)
+        // ⚠️ ТАЙМЕР НА ЗАГРУЗКУ ЧАСТИ
+        pendingTimerId = setTimeout(
+          handlePendingTimeout,
+          WARNING_PENDING_MS
+        ) as unknown as number;
+
         if (elapsedTime > GLOBAL_TIMEOUT_MS) {
+          clearTimeout(pendingTimerId);
           throw {
             user: 'Не удалось завершить загрузку части файла из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
             log: `Part ${partNumber} failed: Global timeout of ${GLOBAL_TIMEOUT_MS}ms exceeded.`,
@@ -101,6 +126,8 @@ const Team = () => {
             headers: { 'Content-Type': 'application/octet-stream' },
             body: chunk,
           });
+
+          clearTimeout(pendingTimerId); // Успех: сбрасываем таймер
 
           if (!uploadRes.ok) {
             if (uploadRes.status < 500) {
@@ -116,12 +143,14 @@ const Team = () => {
 
           const { etag: newEtag } = await uploadRes.json();
           etag = newEtag;
-          success = true; // Успех!
-          // ✅ ИСПРАВЛЕНИЕ: Безусловный сброс флага при успехе
-          setIsRetrying(false);
+          success = true;
+          setIsRetrying(false); // Сброс плашки при успешном ответе
         } catch (error) {
+          clearTimeout(pendingTimerId); // Ошибка: сбрасываем таймер
+
           if ((error as any).fatal) throw error;
 
+          // Активируем плашку, если это реальная ошибка (сеть оборвалась/сервер упал)
           if (attempt === 1) setIsRetrying(true);
 
           console.warn(
@@ -145,18 +174,26 @@ const Team = () => {
       setUploadProgress(Math.round((partNumber / numChunks) * 100));
     }
 
-    // Сброс isRetrying, если вся загрузка завершилась успешно (дублирует, но безопасно)
     setIsRetrying(false);
 
     // 3. Завершаем multipart upload
     let completeRes: Response;
+    // ⚠️ ТАЙМЕР НА ЗАВЕРШАЮЩИЙ ЗАПРОС
+    pendingTimerId = setTimeout(
+      handlePendingTimeout,
+      WARNING_PENDING_MS
+    ) as unknown as number;
+
     try {
       completeRes = await fetch(`${BACKEND_URL}/upload-complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: key, uploadId, parts }),
       });
+      clearTimeout(pendingTimerId);
+      setIsRetrying(false);
     } catch (e) {
+      clearTimeout(pendingTimerId);
       throw {
         user: 'Загрузка частей завершена, но не удалось отправить команду на "сборку" файла. Проверьте интернет.',
         log: `Network error during upload-complete: ${e}`,
@@ -227,10 +264,18 @@ const Team = () => {
         setError({ user: customError.user, log: customError.log });
         console.error('Техническая ошибка:', customError.log);
       } else if (err instanceof Error) {
-        setError({
-          user: 'Произошла непредвиденная ошибка.',
-          log: err.message,
-        });
+        // Обычная сетевая ошибка (Network Error)
+        if (customError.name === 'TypeError') {
+          setError({
+            user: 'Не удалось установить соединение с сервером. Пожалуйста, проверьте интернет.',
+            log: `Initial network error: ${customError.name} - ${customError.message}`,
+          });
+        } else {
+          setError({
+            user: 'Произошла непредвиденная ошибка.',
+            log: err.message,
+          });
+        }
         console.error('Непредвиденная ошибка:', err.message);
       } else {
         setError({
@@ -243,7 +288,7 @@ const Team = () => {
       setIsRetrying(false);
     }
   };
-
+  // ... (остальной код JSX без изменений)
   const isFormValid = teamName && department && city && participants && file;
 
   return (
