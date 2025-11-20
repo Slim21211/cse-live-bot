@@ -5,21 +5,25 @@ import '../../styles/form.scss';
 import FileUpload from '../../components/fileUpload/fileUpload';
 
 const CHUNK_SIZE = 8 * 1024 * 1024; // 8 МБ на часть
-const BACKEND_URL =
-  'https://symptoms-significant-pee-elderly.trycloudflare.com'; // Ваш сервер
+const BACKEND_URL = 'https://justify-grill-manor-adaptation.trycloudflare.com'; // Ваш сервер
+
+// 🚀 НОВЫЕ КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
+const MAX_RETRIES = 10;
+const GLOBAL_TIMEOUT_MS = 60000; // Общий лимит времени на загрузку части: 60 секунд
 
 const Team = () => {
-  // 🚀 ИЗМЕНЕНО: teamName вместо fullName
   const [teamName, setTeamName] = useState('');
   const [department, setDepartment] = useState('');
   const [city, setCity] = useState('');
-  // 🚀 ИЗМЕНЕНО: participants вместо title
   const [participants, setParticipants] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ user: string; log: string } | null>(
+    null
+  );
   const [success, setSuccess] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     if (window.Telegram?.WebApp) {
@@ -31,20 +35,31 @@ const Team = () => {
     }
   }, []);
 
-  // 🚀 НОВАЯ ФУНКЦИЯ: Загрузка через БЭКЕНД (без изменений)
   const uploadFileMultipart = async (file: File, fileName: string) => {
     const fileSize = file.size;
     const numChunks = Math.ceil(fileSize / CHUNK_SIZE);
 
     // 1. Начинаем multipart upload
-    const startRes = await fetch(`${BACKEND_URL}/upload-start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: fileName, contentType: file.type }),
-    });
+    let startRes: Response;
+    try {
+      startRes = await fetch(`${BACKEND_URL}/upload-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: fileName, contentType: file.type }),
+      });
+    } catch (e) {
+      throw {
+        user: 'Не удалось установить соединение с сервером для начала загрузки. Проверьте интернет.',
+        log: `Network error during upload-start: ${e}`,
+      };
+    }
 
     if (!startRes.ok) {
-      throw new Error('Не удалось начать загрузку');
+      const errorText = await startRes.text();
+      throw {
+        user: 'Ошибка при подготовке места для файла на сервере. Пожалуйста, попробуйте позже.',
+        log: `Server error during upload-start: ${startRes.status} - ${errorText}`,
+      };
     }
 
     const { uploadId, key } = await startRes.json();
@@ -62,36 +77,98 @@ const Team = () => {
         key
       )}&uploadId=${uploadId}&partNumber=${partNumber}`;
 
-      const uploadRes = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: chunk,
-      });
+      let attempt = 0;
+      let success = false;
+      let etag = '';
+      const startTime = Date.now();
 
-      if (!uploadRes.ok) {
-        const errorData = await uploadRes.json();
-        console.error('Ошибка загрузки части:', errorData);
-        throw new Error(`Не удалось загрузить часть ${partNumber}`);
-      }
+      // 🚀 Цикл повторных попыток
+      while (attempt < MAX_RETRIES && !success) {
+        attempt++;
+        const elapsedTime = Date.now() - startTime;
 
-      const { etag } = await uploadRes.json();
+        // ⚠️ Проверка общего лимита времени (60 секунд)
+        if (elapsedTime > GLOBAL_TIMEOUT_MS) {
+          throw {
+            user: 'Не удалось завершить загрузку части файла из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
+            log: `Part ${partNumber} failed: Global timeout of ${GLOBAL_TIMEOUT_MS}ms exceeded.`,
+          };
+        }
+
+        try {
+          const uploadRes = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: chunk,
+          });
+
+          if (!uploadRes.ok) {
+            if (uploadRes.status < 500) {
+              const errorText = await uploadRes.text();
+              throw {
+                user: `Сервер вернул ошибку при загрузке части №${partNumber}. Загрузка остановлена.`,
+                log: `Part ${partNumber} failed (status ${uploadRes.status}): ${errorText}`,
+                fatal: true,
+              };
+            }
+            throw new Error(`HTTP Error ${uploadRes.status}`);
+          }
+
+          const { etag: newEtag } = await uploadRes.json();
+          etag = newEtag;
+          success = true; // Успех!
+          // ✅ ИСПРАВЛЕНИЕ: Безусловный сброс флага при успехе
+          setIsRetrying(false);
+        } catch (error) {
+          if ((error as any).fatal) throw error;
+
+          if (attempt === 1) setIsRetrying(true);
+
+          console.warn(
+            `Часть ${partNumber}: Ошибка при попытке ${attempt}.`,
+            error
+          );
+
+          if (attempt >= MAX_RETRIES) {
+            throw {
+              user: 'Не удалось завершить загрузку из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
+              log: `Part ${partNumber} failed after ${MAX_RETRIES} retries. Last error: ${error}`,
+            };
+          }
+
+          const delay = Math.min(Math.pow(2, attempt) - 1, 60) * 1000;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      } // Конец цикла while
+
       parts.push({ PartNumber: partNumber, ETag: etag });
-
-      // Обновляем прогресс
       setUploadProgress(Math.round((partNumber / numChunks) * 100));
     }
 
+    // Сброс isRetrying, если вся загрузка завершилась успешно (дублирует, но безопасно)
+    setIsRetrying(false);
+
     // 3. Завершаем multipart upload
-    const completeRes = await fetch(`${BACKEND_URL}/upload-complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: key, uploadId, parts }),
-    });
+    let completeRes: Response;
+    try {
+      completeRes = await fetch(`${BACKEND_URL}/upload-complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: key, uploadId, parts }),
+      });
+    } catch (e) {
+      throw {
+        user: 'Загрузка частей завершена, но не удалось отправить команду на "сборку" файла. Проверьте интернет.',
+        log: `Network error during upload-complete: ${e}`,
+      };
+    }
 
     if (!completeRes.ok) {
-      const errorData = await completeRes.json();
-      console.error('Ошибка завершения:', errorData);
-      throw new Error('Не удалось завершить загрузку');
+      const errorText = await completeRes.text();
+      throw {
+        user: 'Сервер не смог завершить сборку файла. Пожалуйста, попробуйте снова.',
+        log: `Server error during upload-complete: ${completeRes.status} - ${errorText}`,
+      };
     }
 
     const { publicUrl } = await completeRes.json();
@@ -104,22 +181,24 @@ const Team = () => {
     setError(null);
     setSuccess(false);
     setUploadProgress(0);
+    setIsRetrying(false);
 
     try {
-      if (!file) {
-        throw new Error('Пожалуйста, выберите файл');
-      }
+      if (!file)
+        throw { user: 'Пожалуйста, выберите файл', log: 'No file selected.' };
 
       const fileName = `team_${Date.now()}_${file.name}`;
 
       const publicUrl = await uploadFileMultipart(file, fileName);
 
-      // ⚠️ ИЗМЕНЕНО: Используем teamName и participants
+      setUploadProgress(100);
+
+      // Сохраняем в Supabase
       const submission: Omit<TeamContestSubmission, 'id' | 'created_at'> = {
-        team_name: teamName, // <-- НОВОЕ ПОЛЕ
+        team_name: teamName,
         department,
         city,
-        participants: participants, // <-- НОВОЕ ПОЛЕ
+        participants: participants,
         file_url: publicUrl,
         telegram_user_id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id,
       };
@@ -128,7 +207,12 @@ const Team = () => {
         .from('team_contest')
         .insert(submission);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw {
+          user: 'Ошибка сохранения данных в базу. Возможно, неверный формат одного из полей.',
+          log: `Supabase Insert Error: ${insertError.message}`,
+        };
+      }
 
       setSuccess(true);
 
@@ -138,12 +222,29 @@ const Team = () => {
         }
       }, 2000);
     } catch (err) {
-      console.error('Error:', err);
-      setError(err instanceof Error ? err.message : 'Произошла ошибка');
+      const customError = err as any;
+      if (customError.user && customError.log) {
+        setError({ user: customError.user, log: customError.log });
+        console.error('Техническая ошибка:', customError.log);
+      } else if (err instanceof Error) {
+        setError({
+          user: 'Произошла непредвиденная ошибка.',
+          log: err.message,
+        });
+        console.error('Непредвиденная ошибка:', err.message);
+      } else {
+        setError({
+          user: 'Произошла непредвиденная ошибка.',
+          log: 'Unknown error type.',
+        });
+      }
     } finally {
       setLoading(false);
+      setIsRetrying(false);
     }
   };
+
+  const isFormValid = teamName && department && city && participants && file;
 
   return (
     <div className="contest-form-container">
@@ -155,7 +256,6 @@ const Team = () => {
 
         <form onSubmit={handleSubmit} className="contest-form">
           <div className="form-group">
-            {/* 🚀 ИЗМЕНЕНО: Название команды вместо ФИО представителя */}
             <label htmlFor="teamName">
               Название команды <span className="required">*</span>
             </label>
@@ -201,7 +301,6 @@ const Team = () => {
           </div>
 
           <div className="form-group">
-            {/* 🚀 ИЗМЕНЕНО: Участники команды вместо Названия работы */}
             <label htmlFor="participants">
               Участники команды (ФИО через запятую){' '}
               <span className="required">*</span>
@@ -234,7 +333,16 @@ const Team = () => {
             </div>
           )}
 
-          {error && <div className="error-message">{error}</div>}
+          {/* ⚠️ Уведомление о нестабильности соединения */}
+          {uploadProgress > 0 && uploadProgress < 100 && isRetrying && (
+            <div className="warning-message">
+              Слабое соединение с интернетом, время загрузки может увеличиться.
+            </div>
+          )}
+
+          {/* ⚠️ Отображение пользовательской ошибки */}
+          {error && <div className="error-message">{error.user}</div>}
+
           {success && (
             <div className="success-message">
               ✅ Заявка успешно отправлена! Окно закроется автоматически...
@@ -243,7 +351,7 @@ const Team = () => {
 
           <button
             type="submit"
-            disabled={loading || !file}
+            disabled={loading || !isFormValid}
             className="submit-button"
           >
             {loading ? (

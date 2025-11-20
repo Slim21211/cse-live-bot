@@ -5,8 +5,12 @@ import FileUpload from '../../components/fileUpload/fileUpload';
 import '../../styles/form.scss';
 
 const CHUNK_SIZE = 8 * 1024 * 1024; // 8 МБ на часть
-const BACKEND_URL =
-  'https://symptoms-significant-pee-elderly.trycloudflare.com'; // Ваш сервер
+const BACKEND_URL = 'https://justify-grill-manor-adaptation.trycloudflare.com'; // Ваш сервер
+
+// 🚀 НОВЫЕ КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
+const MAX_RETRIES = 10;
+const GLOBAL_TIMEOUT_MS = 60000; // Общий лимит времени на загрузку части: 60 секунд
+const FETCH_TIMEOUT_MS = 10000; // 10 секунд ожидания ответа
 
 const Child = () => {
   const [fullName, setFullName] = useState('');
@@ -16,9 +20,13 @@ const Child = () => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ user: string; log: string } | null>(
+    null
+  );
   const [success, setSuccess] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  // ⚠️ НОВОЕ: Стейт для индикации нестабильности сети
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     if (window.Telegram?.WebApp) {
@@ -34,31 +42,30 @@ const Child = () => {
     const fileSize = file.size;
     const numChunks = Math.ceil(fileSize / CHUNK_SIZE);
 
-    console.log(
-      `Начало загрузки: ${file.name} ${(fileSize / 1024 / 1024).toFixed(2)} МБ`
-    );
-    console.log(
-      `Файл разбит на ${numChunks} частей по ${(
-        CHUNK_SIZE /
-        1024 /
-        1024
-      ).toFixed(1)} МБ`
-    );
-
     // 1. Начинаем multipart upload
-    const startRes = await fetch(`${BACKEND_URL}/upload-start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: fileName, contentType: file.type }),
-    });
-
-    if (!startRes.ok) {
-      throw new Error('Не удалось начать загрузку');
+    let startRes: Response;
+    try {
+      startRes = await fetch(`${BACKEND_URL}/upload-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: fileName, contentType: file.type }),
+      });
+    } catch (e) {
+      throw {
+        user: 'Не удалось установить соединение с сервером для начала загрузки. Проверьте интернет.',
+        log: `Network error during upload-start: ${e}`,
+      };
     }
 
-    // Получаем uploadId и key (имя файла)
+    if (!startRes.ok) {
+      const errorText = await startRes.text();
+      throw {
+        user: 'Ошибка при подготовке места для файла на сервере. Пожалуйста, попробуйте позже.',
+        log: `Server error during upload-start: ${startRes.status} - ${errorText}`,
+      };
+    }
+
     const { uploadId, key } = await startRes.json();
-    console.log('Multipart upload начат');
 
     // 2. Загружаем каждую часть
     const parts: { PartNumber: number; ETag: string }[] = [];
@@ -66,56 +73,109 @@ const Child = () => {
     for (let i = 0; i < numChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, fileSize);
-      const chunk = file.slice(start, end); // Сырая двоичная часть
+      const chunk = file.slice(start, end);
       const partNumber = i + 1;
 
-      console.log(`Загрузка части ${partNumber}/${numChunks}...`);
-
-      // 🚀 ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Отправка сырых данных и параметров в URL
       const url = `${BACKEND_URL}/upload-part?filename=${encodeURIComponent(
-        key // Используем 'key' из ответа S3 для гарантии
+        key
       )}&uploadId=${uploadId}&partNumber=${partNumber}`;
 
-      const uploadRes = await fetch(url, {
-        method: 'POST',
-        // Указываем Content-Type для сырых двоичных данных
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: chunk, // Отправляем сырой Chunk без Base64 и JSON
-      });
+      let attempt = 0;
+      let success = false;
+      let etag = '';
+      const startTime = Date.now(); // Время начала загрузки части
 
-      if (!uploadRes.ok) {
-        const errorData = await uploadRes.json();
-        console.error('Ошибка загрузки части:', errorData);
-        throw new Error(`Не удалось загрузить часть ${partNumber}`);
-      }
+      // 🚀 Цикл повторных попыток
+      while (attempt < MAX_RETRIES && !success) {
+        attempt++;
+        const elapsedTime = Date.now() - startTime;
 
-      // Ожидаем ETag в нижнем регистре (etag) от сервера
-      const { etag } = await uploadRes.json();
+        // ⚠️ Проверка общего лимита времени (60 секунд)
+        if (elapsedTime > GLOBAL_TIMEOUT_MS) {
+          throw {
+            user: 'Не удалось завершить загрузку файла из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
+            log: `Part ${partNumber} failed: Global timeout of ${GLOBAL_TIMEOUT_MS}ms exceeded.`,
+          };
+        }
+
+        try {
+          const uploadRes = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: chunk,
+          });
+
+          if (!uploadRes.ok) {
+            if (uploadRes.status < 500) {
+              const errorText = await uploadRes.text();
+              throw {
+                user: `Сервер вернул ошибку при загрузке части №${partNumber}. Загрузка остановлена.`,
+                log: `Part ${partNumber} failed (status ${uploadRes.status}): ${errorText}`,
+                fatal: true,
+              };
+            }
+            throw new Error(`HTTP Error ${uploadRes.status}`);
+          }
+
+          const { etag: newEtag } = await uploadRes.json();
+          etag = newEtag;
+          success = true; // Успех!
+          setIsRetrying(false); // Убираем предупреждение об ошибке
+        } catch (error) {
+          if ((error as any).fatal) throw error;
+
+          if (attempt === 1) setIsRetrying(true); // Показываем предупреждение
+
+          console.warn(
+            `Часть ${partNumber}: Ошибка при попытке ${attempt}.`,
+            error
+          );
+
+          if (attempt >= MAX_RETRIES) {
+            // ⚠️ НОВЫЙ ТЕКСТ ОШИБКИ
+            throw {
+              user: 'Не удалось завершить загрузку из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
+              log: `Part ${partNumber} failed after ${MAX_RETRIES} retries. Last error: ${error}`,
+            };
+          }
+
+          // ⚠️ НОВАЯ ЛОГИКА ЗАДЕРЖКИ (Экспоненциальная с ограничением)
+          const delay = Math.min(Math.pow(2, attempt) - 1, 60) * 1000;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      } // Конец цикла while
+
       parts.push({ PartNumber: partNumber, ETag: etag });
-
-      // Обновляем прогресс
       setUploadProgress(Math.round((partNumber / numChunks) * 100));
     }
 
-    console.log('Все части загружены, завершаем...');
+    // Сброс isRetrying, если вся загрузка завершилась успешно
+    setIsRetrying(false);
 
     // 3. Завершаем multipart upload
-    const completeRes = await fetch(`${BACKEND_URL}/upload-complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // Используем key, полученный при старте
-      body: JSON.stringify({ filename: key, uploadId, parts }),
-    });
+    let completeRes: Response;
+    try {
+      completeRes = await fetch(`${BACKEND_URL}/upload-complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: key, uploadId, parts }),
+      });
+    } catch (e) {
+      throw {
+        user: 'Загрузка частей завершена, но не удалось отправить команду на "сборку" файла. Проверьте интернет.',
+        log: `Network error during upload-complete: ${e}`,
+      };
+    }
 
     if (!completeRes.ok) {
-      const errorData = await completeRes.json();
-      console.error('Ошибка завершения:', errorData);
-      throw new Error('Не удалось завершить загрузку');
+      const errorText = await completeRes.text();
+      throw {
+        user: 'Сервер не смог завершить сборку файла. Пожалуйста, попробуйте снова.',
+        log: `Server error during upload-complete: ${completeRes.status} - ${errorText}`,
+      };
     }
 
     const { publicUrl } = await completeRes.json();
-    console.log('Файл успешно загружен в VK Cloud');
-
     return publicUrl;
   };
 
@@ -125,23 +185,19 @@ const Child = () => {
     setError(null);
     setSuccess(false);
     setUploadProgress(0);
+    setIsRetrying(false); // Сброс при старте
 
     try {
-      if (!file) throw new Error('Пожалуйста, выберите файл');
-
-      const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
-      console.log(`Начало загрузки файла: ${file.name}, ${fileSizeMB} МБ`);
+      if (!file)
+        throw { user: 'Пожалуйста, выберите файл', log: 'No file selected.' };
 
       const fileName = `child_${Date.now()}_${file.name}`;
 
-      // Загружаем файл
       const publicUrl = await uploadFileMultipart(file, fileName);
 
-      console.log('Файл загружен:', publicUrl);
       setUploadProgress(100);
 
       // Сохраняем в Supabase
-      console.log('Сохранение в БД...');
       const submission: Omit<ChildContestSubmission, 'id' | 'created_at'> = {
         full_name: fullName,
         department,
@@ -156,9 +212,13 @@ const Child = () => {
         .from('child_contest')
         .insert(submission);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw {
+          user: 'Ошибка сохранения данных в базу. Возможно, неверный формат одного из полей.',
+          log: `Supabase Insert Error: ${insertError.message}`,
+        };
+      }
 
-      console.log('Успешно сохранено в БД!');
       setSuccess(true);
 
       setTimeout(() => {
@@ -167,12 +227,30 @@ const Child = () => {
         }
       }, 2000);
     } catch (err) {
-      console.error('Error:', err);
-      setError(err instanceof Error ? err.message : 'Произошла ошибка');
+      const customError = err as any;
+      if (customError.user && customError.log) {
+        setError({ user: customError.user, log: customError.log });
+        console.error('Техническая ошибка:', customError.log);
+      } else if (err instanceof Error) {
+        setError({
+          user: 'Произошла непредвиденная ошибка.',
+          log: err.message,
+        });
+        console.error('Непредвиденная ошибка:', err.message);
+      } else {
+        setError({
+          user: 'Произошла непредвиденная ошибка.',
+          log: 'Unknown error type.',
+        });
+      }
     } finally {
       setLoading(false);
+      setIsRetrying(false); // Сброс при завершении
     }
   };
+
+  const isFormValid =
+    fullName && department && city && childName && title && file;
 
   return (
     <div className="contest-form-container">
@@ -183,6 +261,9 @@ const Child = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="contest-form">
+          {/* ... (поля формы без изменений) ... */}
+          {/* ... (поля формы без изменений) ... */}
+
           <div className="form-group">
             <label htmlFor="fullName">
               ФИО <span className="required">*</span>
@@ -275,7 +356,15 @@ const Child = () => {
             </div>
           )}
 
-          {error && <div className="error-message">{error}</div>}
+          {/* ⚠️ НОВОЕ: Уведомление о нестабильности соединения */}
+          {uploadProgress > 0 && uploadProgress < 100 && isRetrying && (
+            <div className="warning-message">
+              Слабое соединение с интернетом, время загрузки может увеличиться.
+            </div>
+          )}
+
+          {error && <div className="error-message">{error.user}</div>}
+
           {success && (
             <div className="success-message">
               ✅ Заявка успешно отправлена! Окно закроется автоматически...
@@ -284,7 +373,7 @@ const Child = () => {
 
           <button
             type="submit"
-            disabled={loading || !file}
+            disabled={loading || !isFormValid}
             className="submit-button"
           >
             {loading ? (
