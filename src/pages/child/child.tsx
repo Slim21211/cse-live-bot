@@ -10,13 +10,14 @@ const BACKEND_URL = 'https://justify-grill-manor-adaptation.trycloudflare.com'; 
 // 🚀 КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
 const MAX_RETRIES = 10;
 const GLOBAL_TIMEOUT_MS = 60000; // Общий лимит времени на загрузку части: 60 секунд
-const WARNING_PENDING_MS = 10000; // ⚠️ 20 секунд для показа плашки
+const WARNING_PENDING_MS = 10000; // ⚠️ 10 секунд для показа плашки
 
 const Child = () => {
   const [fullName, setFullName] = useState('');
   const [department, setDepartment] = useState('');
   const [city, setCity] = useState('');
   const [childName, setChildName] = useState('');
+  const [childAge, setChildAge] = useState<number | ''>(''); // ✨ НОВОЕ СОСТОЯНИЕ
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -235,6 +236,7 @@ const Child = () => {
         department,
         city,
         child_name: childName,
+        child_age: childAge as number, // ✨ НОВОЕ ПОЛЕ
         title,
         file_url: publicUrl,
         telegram_user_id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id,
@@ -289,7 +291,7 @@ const Child = () => {
   };
 
   const isFormValid =
-    fullName && department && city && childName && title && file;
+    fullName && department && city && childName && childAge && title && file; // ✨ ОБНОВЛЕННАЯ ВАЛИДАЦИЯ
 
   return (
     <div className="contest-form-container">
@@ -355,6 +357,23 @@ const Child = () => {
               value={childName}
               onChange={(e) => setChildName(e.target.value)}
               placeholder="Маша"
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="childAge">
+              Возраст ребенка <span className="required">*</span>
+            </label>
+            <input
+              id="childAge"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              value={childAge}
+              onChange={(e) => setChildAge(Number(e.target.value) || '')}
+              placeholder="5"
               required
               disabled={loading}
             />
