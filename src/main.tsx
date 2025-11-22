@@ -1,20 +1,41 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
-import App from './App.tsx';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import Child from './pages/child/child.tsx';
-import Team from './pages/team/team.tsx';
-import Individual from './pages/individual/individual.tsx';
+
+import App from './App.tsx';
+
+// Формы подачи заявок
+import ChildForm from './pages/forms/child.tsx';
+import TeamForm from './pages/forms/team.tsx';
+import IndividualForm from './pages/forms/individual.tsx';
+
+// Голосование
+import ChildVoting from './pages/voting/child.tsx';
+import TeamVoting from './pages/voting/team.tsx';
+import IndividualVoting from './pages/voting/individual.tsx';
+
+// Админка
+import Admin from './pages/admin/admin.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />} />
-        <Route path="/child" element={<Child />} />
-        <Route path="/team" element={<Team />} />
-        <Route path="/individual" element={<Individual />} />
+
+        {/* Формы подачи заявок */}
+        <Route path="/child-form" element={<ChildForm />} />
+        <Route path="/team-form" element={<TeamForm />} />
+        <Route path="/individual-form" element={<IndividualForm />} />
+
+        {/* Голосование */}
+        <Route path="/vote/child" element={<ChildVoting />} />
+        <Route path="/vote/team" element={<TeamVoting />} />
+        <Route path="/vote/individual" element={<IndividualVoting />} />
+
+        {/* Админка */}
+        <Route path="/admin" element={<Admin />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>

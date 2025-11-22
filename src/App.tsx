@@ -1,82 +1,84 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from './lib/supabase';
-import type { ChildContestSubmission } from './types/database';
-import FileRenderer from './components/fileRenderer/fileRenderer';
+import { useTelegramUser } from './hooks/useTelegramUser';
 import './App.css';
-import styles from './styles/galery.module.scss';
 
 function App() {
-  const [submissions, setSubmissions] = useState<ChildContestSubmission[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { user, isLoading } = useTelegramUser();
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();
+      window.Telegram.WebApp.setBackgroundColor('#FFFFFF');
+      window.Telegram.WebApp.setHeaderColor('#FFFFFF');
     }
-
-    const fetchSubmissions = async () => {
-      const { data, error } = await supabase
-        .from('child_contest')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        setError('Не удалось загрузить работы: ' + error.message);
-      } else {
-        setSubmissions(data || []);
-      }
-      setLoading(false);
-    };
-
-    fetchSubmissions();
   }, []);
 
-  if (loading)
+  // Проверяем, админ ли пользователь
+  useEffect(() => {
+    if (!user) return;
+
+    const checkAdmin = async () => {
+      const { data } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('telegram_user_id', user.id)
+        .single();
+
+      setIsAdmin(!!data);
+    };
+
+    checkAdmin();
+  }, [user]);
+
+  if (isLoading) {
     return (
-      <div className={styles.container}>
-        <p>Загрузка...</p>
+      <div className="app">
+        <div className="loading">Загрузка...</div>
       </div>
     );
-  if (error)
-    return (
-      <div className={styles.container}>
-        <p className="errorMessage">Ошибка {error}</p>
-      </div>
-    );
+  }
 
   return (
     <div className="app">
-      <div className={styles.container}>
-        <h1>Работы Детского Новогоднего Конкурса</h1>
-        <p className={styles.subtitle}>Голосование скоро будет доступно!</p>
+      <div className="container">
+        <h1>🎄 Новогодние конкурсы</h1>
 
-        {submissions.length === 0 ? (
-          <p>Пока нет работ.</p>
-        ) : (
-          <div className={styles.grid}>
-            {submissions.map((s) => (
-              <div key={s.id} className={styles.card}>
-                <div className={styles.preview}>
-                  <FileRenderer filePath={s.file_url} />
-                </div>
-                <div className={styles.info}>
-                  <h2 className={styles.title}>{s.title}</h2>
-                  <p>
-                    <strong>Ребёнок:</strong> {s.child_name}
-                  </p>
-                  <p>
-                    <strong>Родитель:</strong> {s.full_name}
-                  </p>
-                  <p>
-                    <strong>Подразделение:</strong> {s.department}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+        {user && <p className="welcome">Привет, {user.first_name}!</p>}
+
+        <p className="subtitle">Выбери конкурс для голосования:</p>
+
+        <div className="contests-grid">
+          <Link to="/vote/child" className="contest-card">
+            <span className="contest-icon">🎄</span>
+            <h2>Детский конкурс</h2>
+            <p>Голосуй за лучшие детские работы</p>
+          </Link>
+
+          <Link to="/vote/team" className="contest-card">
+            <span className="contest-icon">✨</span>
+            <h2>Командный конкурс</h2>
+            <p>Поддержи свою команду</p>
+          </Link>
+
+          <Link to="/vote/individual" className="contest-card">
+            <span className="contest-icon">⭐</span>
+            <h2>Индивидуальный конкурс</h2>
+            <p>Выбери лучшую работу</p>
+          </Link>
+        </div>
+
+        {/* Кнопка админ-панели — только для админов */}
+        {isAdmin && (
+          <Link to="/admin" className="admin-link">
+            🛠 Админ-панель
+          </Link>
         )}
+
+        {user && <p className="user-id">ID: {user.id}</p>}
       </div>
     </div>
   );

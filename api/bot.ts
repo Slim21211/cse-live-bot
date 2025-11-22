@@ -1,11 +1,12 @@
 import dotenv from 'dotenv';
 import { Telegraf } from 'telegraf';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 import {
   topicButtons,
   cancelButton,
   sendMoreButton,
-  contestTypeButtons,
+  getContestButtons,
   topics,
 } from './buttons.js';
 
@@ -18,11 +19,28 @@ const mode = process.env.MODE || 'production';
 const admin_ids = process.env.ADMIN_IDS;
 if (!admin_ids) throw new Error('ADMIN_IDS не найден');
 
+// Supabase клиент для бота
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey =
+  process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('Supabase не настроен, проверка участия не будет работать');
+}
+
+const supabase =
+  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
 export const bot = new Telegraf(token);
 const ADMIN_IDS = admin_ids.split(',').map((id) => id.trim());
 
 type UserState = { topic: string; timeout: NodeJS.Timeout };
 const userStates = new Map<number, UserState>();
+
+// Проверка админа
+const isAdmin = (userId: number): boolean => {
+  return ADMIN_IDS.includes(String(userId));
+};
 
 // /start
 bot.start((ctx) => {
@@ -65,19 +83,105 @@ bot.action(['select_news', 'select_question', 'select_idea'], async (ctx) => {
   }
 });
 
-// Конкурс — теперь инлайновая клавиатура!
+// Конкурс
 bot.action('select_contest', async (ctx) => {
   await ctx.answerCbQuery();
   userStates.delete(ctx.from.id);
 
-  // ВАЖНО: Отправляем contestTypeButtons напрямую
+  const userId = ctx.from.id;
+  const showVoting = isAdmin(userId); // Кнопка голосования только для админов
+
   await ctx.reply(
     'Выберите конкурс, в котором вы хотите принять участие:',
-    contestTypeButtons
+    getContestButtons(showVoting)
   );
 });
 
-// Отмена из inline
+// Проверка участия в конкурсах
+bot.action('check_participation', async (ctx) => {
+  await ctx.answerCbQuery();
+
+  const userId = ctx.from.id;
+
+  if (!supabase) {
+    await ctx.reply('⚠️ Сервис временно недоступен. Попробуйте позже.');
+    return;
+  }
+
+  try {
+    // Проверяем участие во всех трёх конкурсах
+    const [childResult, teamResult, individualResult] = await Promise.all([
+      supabase
+        .from('child_contest')
+        .select('title, child_name')
+        .eq('telegram_user_id', userId)
+        .eq('is_active', true),
+      supabase
+        .from('team_contest')
+        .select('title')
+        .eq('telegram_user_id', userId)
+        .eq('is_active', true),
+      supabase
+        .from('individual_contest')
+        .select('title')
+        .eq('telegram_user_id', userId)
+        .eq('is_active', true),
+    ]);
+
+    const childWorks = childResult.data || [];
+    const teamWorks = teamResult.data || [];
+    const individualWorks = individualResult.data || [];
+
+    const totalWorks =
+      childWorks.length + teamWorks.length + individualWorks.length;
+
+    if (totalWorks === 0) {
+      const showVoting = isAdmin(userId);
+      await ctx.reply(
+        '📭 Вы пока не участвуете ни в одном конкурсе.\n\n' +
+          'Выберите конкурс, в котором вы хотели бы принять участие!',
+        getContestButtons(showVoting)
+      );
+      return;
+    }
+
+    // Формируем сообщение с работами
+    let message = '🎉 Вы участвуете в конкурсах!\n\n';
+
+    if (childWorks.length > 0) {
+      message += '🎄 *Детский новогодний конкурс:*\n';
+      childWorks.forEach((work, i) => {
+        message += `   ${i + 1}. "${work.title}" (${work.child_name})\n`;
+      });
+      message += '\n';
+    }
+
+    if (teamWorks.length > 0) {
+      message += '✨ *Командный новогодний конкурс:*\n';
+      teamWorks.forEach((work, i) => {
+        message += `   ${i + 1}. "${work.title}"\n`;
+      });
+      message += '\n';
+    }
+
+    if (individualWorks.length > 0) {
+      message += '⭐ *Индивидуальный новогодний конкурс:*\n';
+      individualWorks.forEach((work, i) => {
+        message += `   ${i + 1}. "${work.title}"\n`;
+      });
+      message += '\n';
+    }
+
+    message += `📊 Всего работ: ${totalWorks}`;
+
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+  } catch (err) {
+    console.error('Error checking participation:', err);
+    await ctx.reply('⚠️ Ошибка при проверке участия. Попробуйте позже.');
+  }
+});
+
+// Отмена
 bot.action('cancel', async (ctx) => {
   const state = userStates.get(ctx.from.id);
   if (state) clearTimeout(state.timeout);
@@ -90,14 +194,10 @@ bot.action('cancel', async (ctx) => {
   );
 });
 
-// ВАЖНО: Удален bot.hears('Отмена', ...), так как инлайн-кнопки не генерируют текстового сообщения.
-
 // Контент от пользователя
 bot.on(['text', 'photo', 'video', 'document'], async (ctx) => {
   const state = userStates.get(ctx.from.id);
   if (!state) {
-    // Отправляем главное меню, если нет состояния
-    // При этом используем ReplyKeyboardRemove, чтобы убрать старую обычную клавиатуру, если она была активна
     return ctx.reply('Сначала выбери тип сообщения:', topicButtons);
   }
 
@@ -139,7 +239,6 @@ bot.on(['text', 'photo', 'video', 'document'], async (ctx) => {
         await ctx.telegram.sendDocument(id, fileId, { caption });
     }
 
-    // При успешной отправке возвращаем инлайн-кнопку "Отправить ещё"
     await ctx.reply(
       'Спасибо! Сообщение отправлено администратору.',
       sendMoreButton

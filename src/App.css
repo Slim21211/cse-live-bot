@@ -1,28 +1,117 @@
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-body,
-html {
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f8f8f8;
-  overflow-x: hidden;
-}
-
 .app {
   min-height: 100vh;
-  background: #f8f8f8;
+  background-color: #ffffff;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.errorMessage {
-  color: #d9534f;
-  background: #ffe6e6;
-  padding: 16px;
-  border-radius: 12px;
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.app h1 {
   text-align: center;
-  margin: 20px;
+  color: #4f2c1d;
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.welcome {
+  text-align: center;
+  color: #fe5000;
+  font-size: 18px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #666;
+  font-size: 16px;
+  margin-bottom: 24px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-size: 18px;
+  color: #666;
+}
+
+.contests-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.contest-card {
+  display: block;
+  background: #ffffff;
+  border: 2px solid #fe5000;
+  border-radius: 16px;
+  padding: 20px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.contest-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(254, 80, 0, 0.2);
+}
+
+.contest-card:active {
+  transform: translateY(0);
+}
+
+.contest-icon {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.contest-card h2 {
+  color: #4f2c1d;
+  font-size: 20px;
+  margin: 0 0 4px 0;
+}
+
+.contest-card p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+}
+
+.user-id {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+  margin-top: 24px;
+}
+
+/* Кнопка админ-панели */
+.admin-link {
+  display: block;
+  text-align: center;
+  margin-top: 24px;
+  padding: 14px 20px;
+  background: #4f2c1d;
+  color: #ffffff;
+  text-decoration: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.admin-link:hover {
+  background: #3a2016;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(79, 44, 29, 0.3);
+}
+
+.admin-link:active {
+  transform: translateY(0);
 }

@@ -236,10 +236,11 @@ const Child = () => {
         department,
         city,
         child_name: childName,
-        child_age: childAge as number, // ✨ НОВОЕ ПОЛЕ
+        child_age: childAge as number,
         title,
         file_url: publicUrl,
         telegram_user_id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id,
+        is_active: true,
       };
 
       const { error: insertError } = await supabase

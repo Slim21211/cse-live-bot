@@ -237,6 +237,7 @@ const Individual = () => {
           title,
           file_url: publicUrl,
           telegram_user_id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id,
+          is_active: true,
         };
 
       const { error: insertError } = await supabase
