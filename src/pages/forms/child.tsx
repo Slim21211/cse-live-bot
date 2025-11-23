@@ -5,7 +5,7 @@ import FileUpload from '../../components/fileUpload/fileUpload';
 import '../../styles/form.scss';
 
 const CHUNK_SIZE = 8 * 1024 * 1024; // 8 МБ на часть
-const BACKEND_URL = 'https://justify-grill-manor-adaptation.trycloudflare.com'; // Ваш сервер
+const BACKEND_URL = 'https://arts-geometry-mazda-uncertainty.trycloudflare.com'; // Ваш сервер
 
 // 🚀 КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
 const MAX_RETRIES = 10;

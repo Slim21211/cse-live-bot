@@ -2,22 +2,21 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useTelegramUser } from '../../hooks/useTelegramUser';
+import type {
+  ChildContestSubmission,
+  TeamContestSubmission,
+  IndividualContestSubmission,
+} from '../../types/database';
 import FileRenderer from '../../components/fileRenderer/fileRenderer';
 import '../../styles/admin.scss';
 
 type ContestType = 'child' | 'team' | 'individual';
 
-interface Submission {
-  id: string;
-  title: string;
-  full_name: string;
-  department: string;
-  city: string;
-  child_name?: string;
-  file_url: string;
-  is_active: boolean;
-  created_at: string;
-}
+// Union type для всех типов работ
+type Submission =
+  | ChildContestSubmission
+  | TeamContestSubmission
+  | IndividualContestSubmission;
 
 const Admin = () => {
   const { user, isLoading: userLoading } = useTelegramUser();
@@ -116,9 +115,7 @@ const Admin = () => {
 
     const tableName = `${activeTab}_contest`;
 
-    console.log('Скрываем работу:', deleteModal.id, 'из таблицы:', tableName);
-
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from(tableName)
       .update({
         is_active: false,
@@ -126,15 +123,12 @@ const Admin = () => {
         moderated_by: user.id,
       })
       .eq('id', deleteModal.id)
-      .select(); // Добавляем select чтобы увидеть результат
-
-    console.log('Результат update:', { data, error });
+      .select();
 
     if (error) {
       console.error('Ошибка при скрытии:', error);
       alert('Ошибка: ' + error.message);
     } else {
-      // Обновляем локальный state только если update прошёл успешно
       setSubmissions((prev) =>
         prev.map((s) =>
           s.id === deleteModal.id ? { ...s, is_active: false } : s
@@ -158,6 +152,89 @@ const Admin = () => {
         prev.map((s) => (s.id === id ? { ...s, is_active: true } : s))
       );
     }
+  };
+
+  // Функция для рендера информации в зависимости от типа конкурса
+  const renderSubmissionInfo = (submission: Submission) => {
+    if (activeTab === 'child') {
+      const child = submission as ChildContestSubmission;
+      return (
+        <>
+          <h3>{child.title}</h3>
+          <p>
+            <strong>Ребёнок:</strong> {child.child_name}, {child.child_age}{' '}
+            {getAgeWord(child.child_age)}
+          </p>
+          <p>
+            <strong>Родитель:</strong> {child.full_name}
+          </p>
+          <p>
+            <strong>Подразделение:</strong> {child.department}
+          </p>
+          <p>
+            <strong>Город:</strong> {child.city}
+          </p>
+        </>
+      );
+    }
+
+    if (activeTab === 'team') {
+      const team = submission as TeamContestSubmission;
+      return (
+        <>
+          <h3>{team.team_name}</h3>
+          <p>
+            <strong>Участники:</strong> {team.participants}
+          </p>
+          <p>
+            <strong>Подразделение:</strong> {team.department}
+          </p>
+          <p>
+            <strong>Город:</strong> {team.city}
+          </p>
+        </>
+      );
+    }
+
+    if (activeTab === 'individual') {
+      const individual = submission as IndividualContestSubmission;
+      return (
+        <>
+          <h3>{individual.title}</h3>
+          <p>
+            <strong>Автор:</strong> {individual.full_name}
+          </p>
+          <p>
+            <strong>Подразделение:</strong> {individual.department}
+          </p>
+          <p>
+            <strong>Город:</strong> {individual.city}
+          </p>
+        </>
+      );
+    }
+
+    return null;
+  };
+
+  // Функция для склонения слова "год/года/лет"
+  const getAgeWord = (age: number): string => {
+    const lastDigit = age % 10;
+    const lastTwoDigits = age % 100;
+
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+      return 'лет';
+    }
+
+    if (lastDigit === 1) {
+      return 'год';
+    }
+
+    if (lastDigit >= 2 && lastDigit <= 4) {
+      return 'года';
+    }
+
+    return 'лет';
   };
 
   if (userLoading) {
@@ -241,21 +318,8 @@ const Admin = () => {
               </div>
 
               <div className="admin-card-info">
-                <h3>{submission.title}</h3>
-                <p>
-                  <strong>Автор:</strong> {submission.full_name}
-                </p>
-                {submission.child_name && (
-                  <p>
-                    <strong>Ребёнок:</strong> {submission.child_name}
-                  </p>
-                )}
-                <p>
-                  <strong>Подразделение:</strong> {submission.department}
-                </p>
-                <p>
-                  <strong>Город:</strong> {submission.city}
-                </p>
+                {renderSubmissionInfo(submission)}
+
                 <div className="admin-card-stats">
                   <span>
                     📅{' '}

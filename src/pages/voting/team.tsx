@@ -180,10 +180,7 @@ const TeamVoting = () => {
 
               <div className="voting-card-info">
                 <p>
-                  <strong>Автор:</strong> {submission.team_name}
-                </p>
-                <p>
-                  <strong>Подразделение:</strong> {submission.department}
+                  <strong>Команда:</strong> {submission.team_name}
                 </p>
                 <p>
                   <strong>Город:</strong> {submission.city}
