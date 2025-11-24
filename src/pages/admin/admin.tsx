@@ -154,6 +154,24 @@ const Admin = () => {
     }
   };
 
+  const rotateImage = async (id: string, currentRotation: number = 0) => {
+    const tableName = `${activeTab}_contest`;
+    const newRotation = (currentRotation + 90) % 360; // Поворачиваем на 90°
+
+    const { error } = await supabase
+      .from(tableName)
+      .update({ rotation: newRotation })
+      .eq('id', id);
+
+    if (!error) {
+      setSubmissions((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, rotation: newRotation } : s))
+      );
+    } else {
+      console.error('Ошибка поворота:', error);
+    }
+  };
+
   // Функция для рендера информации в зависимости от типа конкурса
   const renderSubmissionInfo = (submission: Submission) => {
     if (activeTab === 'child') {
@@ -237,6 +255,14 @@ const Admin = () => {
     return 'лет';
   };
 
+  // Функция для проверки является ли файл изображением
+  const isImage = (url: string): boolean => {
+    const ext = (url.split('.').pop()?.split('?')[0] || '').toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'svg'].includes(
+      ext
+    );
+  };
+
   if (userLoading) {
     return (
       <div className="admin-container">
@@ -314,7 +340,10 @@ const Admin = () => {
               style={{ opacity: submission.is_active ? 1 : 0.5 }}
             >
               <div className="admin-card-media">
-                <FileRenderer filePath={submission.file_url} />
+                <FileRenderer
+                  filePath={submission.file_url}
+                  rotation={submission.rotation || 0}
+                />
               </div>
 
               <div className="admin-card-info">
@@ -330,6 +359,17 @@ const Admin = () => {
               </div>
 
               <div className="admin-card-actions">
+                {isImage(submission.file_url) && (
+                  <button
+                    className="rotate-button"
+                    onClick={() =>
+                      rotateImage(submission.id, submission.rotation || 0)
+                    }
+                    title="Повернуть на 90°"
+                  >
+                    ↻ Повернуть
+                  </button>
+                )}
                 {submission.is_active ? (
                   <button
                     className="delete-button"

@@ -1,11 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
+import Lightbox from '../lightbox/lightbox';
 import styles from './fileRenderer.module.scss';
 
 interface FileRendererProps {
   filePath: string;
+  rotation?: number; // 🆕 Угол поворота
 }
 
-const FileRenderer: React.FC<FileRendererProps> = ({ filePath }) => {
+const FileRenderer: React.FC<FileRendererProps> = ({
+  filePath,
+  rotation = 0,
+}) => {
+  const [showLightbox, setShowLightbox] = useState(false);
+
   if (!filePath) {
     return <div className={styles.fallback}>Файл отсутствует</div>;
   }
@@ -21,16 +28,12 @@ const FileRenderer: React.FC<FileRendererProps> = ({ filePath }) => {
         controls
         playsInline
         muted={false}
-        preload="auto"
-        poster=""
+        preload="metadata"
         className={styles.media}
         onClick={(e) => e.currentTarget.play().catch(() => {})}
       >
         <track kind="captions" />
         Ваш браузер не поддерживает видео.
-        <a href={url} target="_blank" rel="noopener noreferrer">
-          Скачать видео
-        </a>
       </video>
     );
   }
@@ -40,11 +43,32 @@ const FileRenderer: React.FC<FileRendererProps> = ({ filePath }) => {
     ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'svg'].includes(ext)
   ) {
     return (
-      <img src={url} alt="Работа" className={styles.media} loading="lazy" />
+      <>
+        <img
+          src={url}
+          alt="Работа"
+          className={styles.media}
+          loading="lazy"
+          onClick={() => setShowLightbox(true)}
+          style={{
+            cursor: 'zoom-in',
+            transform: `rotate(${rotation}deg)`, // 🆕 Применяем поворот
+          }}
+        />
+        {showLightbox && (
+          <Lightbox
+            imageUrl={url}
+            rotation={rotation} // 🆕 Передаём rotation в lightbox
+            onClose={() => setShowLightbox(false)}
+          />
+        )}
+      </>
     );
   }
 
-  // === PDF ===
+  // Остальные типы файлов без изменений...
+  // PDF, DOC, и т.д.
+
   if (ext === 'pdf') {
     return (
       <div className={styles.documentPreview}>
@@ -64,7 +88,6 @@ const FileRenderer: React.FC<FileRendererProps> = ({ filePath }) => {
     );
   }
 
-  // === ТЕКСТОВЫЕ ДОКУМЕНТЫ ===
   if (['doc', 'docx', 'txt', 'rtf'].includes(ext)) {
     return (
       <div className={styles.documentPreview}>
@@ -86,7 +109,6 @@ const FileRenderer: React.FC<FileRendererProps> = ({ filePath }) => {
     );
   }
 
-  // === ПРЕЗЕНТАЦИИ ===
   if (['ppt', 'pptx'].includes(ext)) {
     return (
       <div className={styles.documentPreview}>
@@ -106,7 +128,6 @@ const FileRenderer: React.FC<FileRendererProps> = ({ filePath }) => {
     );
   }
 
-  // === ТАБЛИЦЫ ===
   if (['xls', 'xlsx', 'csv'].includes(ext)) {
     return (
       <div className={styles.documentPreview}>
@@ -126,7 +147,6 @@ const FileRenderer: React.FC<FileRendererProps> = ({ filePath }) => {
     );
   }
 
-  // === АРХИВЫ ===
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
     return (
       <div className={styles.documentPreview}>
@@ -146,7 +166,6 @@ const FileRenderer: React.FC<FileRendererProps> = ({ filePath }) => {
     );
   }
 
-  // === ВСЁ ОСТАЛЬНОЕ ===
   return (
     <div className={styles.documentPreview}>
       <div className={styles.documentIcon}>📎</div>

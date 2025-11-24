@@ -280,3 +280,18 @@
     background: #d32f2f;
   }
 }
+
+.rotate-button {
+  padding: 8px 16px;
+  background: #2196f3;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #1976d2;
+  }
+}

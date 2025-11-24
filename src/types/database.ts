@@ -8,6 +8,7 @@ export interface ChildContestSubmission {
   title: string;
   telegram_user_id?: number;
   file_url: string;
+  rotation?: number; // 🆕
   is_active: boolean;
   moderated_at?: string;
   moderated_by?: number;
@@ -22,6 +23,7 @@ export interface TeamContestSubmission {
   participants: string;
   telegram_user_id?: number;
   file_url: string;
+  rotation?: number; // 🆕
   is_active: boolean;
   moderated_at?: string;
   moderated_by?: number;
@@ -36,6 +38,7 @@ export interface IndividualContestSubmission {
   title: string;
   telegram_user_id?: number;
   file_url: string;
+  rotation?: number; // 🆕
   is_active: boolean;
   moderated_at?: string;
   moderated_by?: number;

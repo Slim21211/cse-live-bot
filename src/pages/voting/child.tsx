@@ -187,7 +187,10 @@ const ChildVoting = () => {
           {submissions.map((submission) => (
             <div key={submission.id} className="voting-card">
               <div className="voting-card-media">
-                <FileRenderer filePath={submission.file_url} />
+                <FileRenderer
+                  filePath={submission.file_url}
+                  rotation={submission.rotation || 0}
+                />
               </div>
 
               <div className="voting-card-info">
