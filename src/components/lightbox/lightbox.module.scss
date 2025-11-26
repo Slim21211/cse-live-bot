@@ -34,8 +34,8 @@
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   color: white;
-  font-size: 32px; // Увеличил размер
-  line-height: 1; // 🆕 Важно!
+  font-size: 32px;
+  line-height: 1;
   font-weight: 300;
   cursor: pointer;
   display: flex;
@@ -43,7 +43,7 @@
   justify-content: center;
   transition: all 0.2s ease;
   z-index: 10000;
-  padding: 0; // 🆕 Убираем padding
+  padding: 0;
 
   &:hover {
     background: rgba(255, 255, 255, 0.3);
@@ -56,12 +56,11 @@
 }
 
 .image {
-  max-width: 100%;
-  max-height: 100%;
   object-fit: contain;
   cursor: default;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   border-radius: 8px;
+  // max-width и max-height теперь задаются динамически через inline style
 }
 
 @media (max-width: 768px) {

@@ -2,22 +2,19 @@ import { useState, FormEvent, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { ChildContestSubmission } from '../../types/database';
 import FileUpload from '../../components/fileUpload/fileUpload';
+import {
+  uploadFileMultipart,
+  logUploadError,
+  getConnectionInfo,
+} from '../../utils/uploadUtils';
 import '../../styles/form.scss';
-
-const CHUNK_SIZE = 8 * 1024 * 1024; // 8 МБ на часть
-const BACKEND_URL = 'https://arts-geometry-mazda-uncertainty.trycloudflare.com'; // Ваш сервер
-
-// 🚀 КОНСТАНТЫ ДЛЯ УСТОЙЧИВОСТИ
-const MAX_RETRIES = 10;
-const GLOBAL_TIMEOUT_MS = 60000; // Общий лимит времени на загрузку части: 60 секунд
-const WARNING_PENDING_MS = 10000; // ⚠️ 10 секунд для показа плашки
 
 const Child = () => {
   const [fullName, setFullName] = useState('');
   const [department, setDepartment] = useState('');
   const [city, setCity] = useState('');
   const [childName, setChildName] = useState('');
-  const [childAge, setChildAge] = useState<number | ''>(''); // ✨ НОВОЕ СОСТОЯНИЕ
+  const [childAge, setChildAge] = useState<number | ''>('');
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,180 +35,6 @@ const Child = () => {
     }
   }, []);
 
-  // 💡 Функция для обработки таймаута ожидания (ТОЛЬКО включает плашку)
-  const handlePendingTimeout = () => {
-    // ⭐️ ИСПРАВЛЕНО: Только включаем плашку. Прогресс-бар (setUploadProgress(1)) активируется отдельно, после upload-start.
-    setIsRetrying(true);
-  };
-
-  const uploadFileMultipart = async (file: File, fileName: string) => {
-    const fileSize = file.size;
-    const numChunks = Math.ceil(fileSize / CHUNK_SIZE);
-
-    // 1. Начинаем multipart upload
-    let startRes: Response;
-    // ⚠️ ТАЙМЕР НА ПЕРВЫЙ ЗАПРОС
-    let pendingTimerId = setTimeout(
-      handlePendingTimeout,
-      WARNING_PENDING_MS
-    ) as unknown as number;
-
-    try {
-      startRes = await fetch(`${BACKEND_URL}/upload-start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: fileName, contentType: file.type }),
-      });
-      clearTimeout(pendingTimerId);
-      setIsRetrying(false);
-    } catch (e) {
-      clearTimeout(pendingTimerId);
-      throw {
-        user: 'Не удалось установить соединение с сервером для начала загрузки. Проверьте интернет.',
-        log: `Network error during upload-start: ${e}`,
-      };
-    }
-
-    if (!startRes.ok) {
-      const errorText = await startRes.text();
-      throw {
-        user: 'Ошибка при подготовке места для файла на сервере. Пожалуйста, попробуйте позже.',
-        log: `Server error during upload-start: ${startRes.status} - ${errorText}`,
-      };
-    }
-
-    const { uploadId, key } = await startRes.json();
-    // ⭐️ ИСПРАВЛЕНО: Устанавливаем 1% здесь, чтобы прогресс-бар появился.
-    setUploadProgress(1);
-
-    // 2. Загружаем каждую часть
-    const parts: { PartNumber: number; ETag: string }[] = [];
-
-    for (let i = 0; i < numChunks; i++) {
-      const start = i * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, fileSize);
-      const chunk = file.slice(start, end);
-      const partNumber = i + 1;
-
-      const url = `${BACKEND_URL}/upload-part?filename=${encodeURIComponent(
-        key
-      )}&uploadId=${uploadId}&partNumber=${partNumber}`;
-
-      let attempt = 0;
-      let success = false;
-      let etag = '';
-      const startTime = Date.now();
-
-      // 🚀 Цикл повторных попыток
-      while (attempt < MAX_RETRIES && !success) {
-        attempt++;
-        const elapsedTime = Date.now() - startTime;
-
-        // ⚠️ ТАЙМЕР НА ЗАГРУЗКУ ЧАСТИ
-        pendingTimerId = setTimeout(
-          handlePendingTimeout,
-          WARNING_PENDING_MS
-        ) as unknown as number;
-
-        if (elapsedTime > GLOBAL_TIMEOUT_MS) {
-          clearTimeout(pendingTimerId);
-          throw {
-            user: 'Не удалось завершить загрузку файла из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
-            log: `Part ${partNumber} failed: Global timeout of ${GLOBAL_TIMEOUT_MS}ms exceeded.`,
-          };
-        }
-
-        try {
-          const uploadRes = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/octet-stream' },
-            body: chunk,
-          });
-
-          clearTimeout(pendingTimerId);
-
-          if (!uploadRes.ok) {
-            if (uploadRes.status < 500) {
-              const errorText = await uploadRes.text();
-              throw {
-                user: `Сервер вернул ошибку при загрузке части №${partNumber}. Загрузка остановлена.`,
-                log: `Part ${partNumber} failed (status ${uploadRes.status}): ${errorText}`,
-                fatal: true,
-              };
-            }
-            throw new Error(`HTTP Error ${uploadRes.status}`);
-          }
-
-          const { etag: newEtag } = await uploadRes.json();
-          etag = newEtag;
-          success = true;
-          setIsRetrying(false);
-        } catch (error) {
-          clearTimeout(pendingTimerId);
-
-          if ((error as any).fatal) throw error;
-
-          if (attempt === 1) setIsRetrying(true);
-
-          console.warn(
-            `Часть ${partNumber}: Ошибка при попытке ${attempt}.`,
-            error
-          );
-
-          if (attempt >= MAX_RETRIES) {
-            throw {
-              user: 'Не удалось завершить загрузку из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
-              log: `Part ${partNumber} failed after ${MAX_RETRIES} retries. Last error: ${error}`,
-            };
-          }
-
-          const delay = Math.min(Math.pow(2, attempt) - 1, 60) * 1000;
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-      } // Конец цикла while
-
-      parts.push({ PartNumber: partNumber, ETag: etag });
-      setUploadProgress(Math.round((partNumber / numChunks) * 100));
-    }
-
-    setIsRetrying(false);
-
-    // 3. Завершаем multipart upload
-    let completeRes: Response;
-    // ⚠️ ТАЙМЕР НА ЗАВЕРШАЮЩИЙ ЗАПРОС
-    pendingTimerId = setTimeout(
-      handlePendingTimeout,
-      WARNING_PENDING_MS
-    ) as unknown as number;
-
-    try {
-      completeRes = await fetch(`${BACKEND_URL}/upload-complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: key, uploadId, parts }),
-      });
-      clearTimeout(pendingTimerId);
-      setIsRetrying(false);
-    } catch (e) {
-      clearTimeout(pendingTimerId);
-      throw {
-        user: 'Загрузка частей завершена, но не удалось отправить команду на "сборку" файла. Проверьте интернет.',
-        log: `Network error during upload-complete: ${e}`,
-      };
-    }
-
-    if (!completeRes.ok) {
-      const errorText = await completeRes.text();
-      throw {
-        user: 'Сервер не смог завершить сборку файла. Пожалуйста, попробуйте снова.',
-        log: `Server error during upload-complete: ${completeRes.status} - ${errorText}`,
-      };
-    }
-
-    const { publicUrl } = await completeRes.json();
-    return publicUrl;
-  };
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -226,7 +49,11 @@ const Child = () => {
 
       const fileName = `child_${Date.now()}_${file.name}`;
 
-      const publicUrl = await uploadFileMultipart(file, fileName);
+      // Используем вынесенную функцию загрузки
+      const publicUrl = await uploadFileMultipart(file, fileName, {
+        onProgress: setUploadProgress,
+        onRetrying: setIsRetrying,
+      });
 
       setUploadProgress(100);
 
@@ -248,6 +75,18 @@ const Child = () => {
         .insert(submission);
 
       if (insertError) {
+        const connectionInfo = getConnectionInfo();
+
+        await logUploadError({
+          telegram_user_id: window.Telegram?.WebApp?.initDataUnsafe?.user?.id,
+          file_name: fileName,
+          file_size: file.size,
+          file_type: file.type,
+          error_stage: 'supabase',
+          error_message: insertError.message,
+          ...connectionInfo,
+        });
+
         throw {
           user: 'Ошибка сохранения данных в базу. Возможно, неверный формат одного из полей.',
           log: `Supabase Insert Error: ${insertError.message}`,
@@ -292,7 +131,7 @@ const Child = () => {
   };
 
   const isFormValid =
-    fullName && department && city && childName && childAge && title && file; // ✨ ОБНОВЛЕННАЯ ВАЛИДАЦИЯ
+    fullName && department && city && childName && childAge && title && file;
 
   return (
     <div className="contest-form-container">
@@ -412,7 +251,6 @@ const Child = () => {
             </div>
           )}
 
-          {/* ⚠️ Уведомление о нестабильности соединения */}
           {uploadProgress > 0 && uploadProgress < 100 && isRetrying && (
             <div className="warning-message">
               Слабое соединение с интернетом, время загрузки может увеличиться.

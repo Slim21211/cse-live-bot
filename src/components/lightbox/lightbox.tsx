@@ -3,7 +3,7 @@ import styles from './lightbox.module.scss';
 
 interface LightboxProps {
   imageUrl: string;
-  rotation?: number; // 🆕
+  rotation?: number;
   onClose: () => void;
 }
 
@@ -23,6 +23,15 @@ const Lightbox = ({ imageUrl, rotation = 0, onClose }: LightboxProps) => {
     };
   }, [onClose]);
 
+  // Если поворот 90° или 270°, нужно поменять max-width и max-height местами
+  const isRotated90or270 = rotation % 180 !== 0;
+
+  const imageStyle: React.CSSProperties = {
+    transform: `rotate(${rotation}deg)`,
+    maxWidth: isRotated90or270 ? '100vh' : '100%',
+    maxHeight: isRotated90or270 ? '100vw' : '100%',
+  };
+
   return (
     <div className={styles.lightbox} onClick={onClose}>
       <button className={styles.closeButton} onClick={onClose}>
@@ -32,7 +41,7 @@ const Lightbox = ({ imageUrl, rotation = 0, onClose }: LightboxProps) => {
         src={imageUrl}
         alt="Полноэкранный просмотр"
         className={styles.image}
-        style={{ transform: `rotate(${rotation}deg)` }} // 🆕
+        style={imageStyle}
         onClick={(e) => e.stopPropagation()}
       />
     </div>
