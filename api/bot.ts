@@ -118,7 +118,7 @@ bot.action('check_participation', async (ctx) => {
         .eq('is_active', true),
       supabase
         .from('team_contest')
-        .select('title')
+        .select('team_name')
         .eq('telegram_user_id', userId)
         .eq('is_active', true),
       supabase
@@ -159,7 +159,7 @@ bot.action('check_participation', async (ctx) => {
     if (teamWorks.length > 0) {
       message += '✨ *Командный новогодний конкурс:*\n';
       teamWorks.forEach((work, i) => {
-        message += `   ${i + 1}. "${work.title}"\n`;
+        message += `   ${i + 1}. "${work.team_name}"\n`;
       });
       message += '\n';
     }
