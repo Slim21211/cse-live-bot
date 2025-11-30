@@ -1,10 +1,10 @@
 import { supabase } from '../lib/supabase';
 
-const BACKEND_URL = 'https://arts-geometry-mazda-uncertainty.trycloudflare.com';
+const BACKEND_URL = 'https://api.cse-contests.ru';
 const CHUNK_SIZE = 8 * 1024 * 1024; // 8 МБ
 const MAX_RETRIES = 10;
-const GLOBAL_TIMEOUT_MS = 60000;
-const WARNING_PENDING_MS = 10000;
+const WARNING_PENDING_MS = 15000;
+const CHUNK_TIMEOUT_MS = 60000;
 
 // 🆕 Интерфейс для логирования ошибок
 export interface UploadDiagnostics {
@@ -163,51 +163,37 @@ export const uploadFileMultipart = async (
 
       while (attempt < MAX_RETRIES && !success) {
         attempt++;
-        const elapsedTime = Date.now() - startTime;
+        let controller = new AbortController(); // Создаем новый контроллер для каждого ретрая
+        let timeoutId: number | undefined;
 
+        // 1. Показываем предупреждение о плохом интернете через 10 секунд
         pendingTimerId = setTimeout(
           () => callbacks.onRetrying(true),
           WARNING_PENDING_MS
         ) as unknown as number;
 
-        if (elapsedTime > GLOBAL_TIMEOUT_MS) {
-          clearTimeout(pendingTimerId);
-          const elapsed = Date.now() - startTime;
-
-          console.error(
-            `❌ Part ${partNumber} global timeout after ${elapsed}ms`
+        // 2. Устанавливаем принудительный таймаут на 60 секунд для fetch
+        timeoutId = setTimeout(() => {
+          controller.abort();
+          console.warn(
+            `Part ${partNumber}: CHUNK_TIMEOUT_MS exceeded. Aborting fetch.`
           );
-
-          await logUploadError({
-            telegram_user_id: userId,
-            file_name: fileName,
-            file_size: fileSize,
-            file_type: file.type,
-            error_stage: 'upload-part',
-            error_message: 'Global timeout exceeded',
-            failed_part: partNumber,
-            total_parts: numChunks,
-            retry_attempts: attempt,
-            time_elapsed_ms: elapsed,
-            ...connectionInfo,
-          });
-
-          throw {
-            user: 'Не удалось завершить загрузку файла из-за продолжительных проблем с соединением. Пожалуйста, проверьте стабильность интернета и повторите попытку.',
-            log: `Part ${partNumber} failed: Global timeout of ${GLOBAL_TIMEOUT_MS}ms exceeded.`,
-          };
-        }
+        }, CHUNK_TIMEOUT_MS) as unknown as number;
 
         try {
+          // Выполняем запрос с таймаутом
           const uploadRes = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/octet-stream' },
             body: chunk,
+            signal: controller.signal, // Используем signal для принудительного прерывания
           });
 
           clearTimeout(pendingTimerId);
+          clearTimeout(timeoutId); // Успех! Очищаем оба таймера
 
           if (!uploadRes.ok) {
+            // Если ошибка < 500, считаем ее фатальной и прекращаем загрузку
             if (uploadRes.status < 500) {
               const errorText = await uploadRes.text();
               const elapsed = Date.now() - startTime;
@@ -236,6 +222,7 @@ export const uploadFileMultipart = async (
                 fatal: true,
               };
             }
+            // Для 5xx (ошибки сервера, которые могут быть временными) делаем ретрай
             throw new Error(`HTTP Error ${uploadRes.status}`);
           }
 
@@ -248,14 +235,23 @@ export const uploadFileMultipart = async (
           );
         } catch (error) {
           clearTimeout(pendingTimerId);
+          clearTimeout(timeoutId); // Очищаем таймеры при ошибке
 
           if ((error as any).fatal) throw error;
 
-          if (attempt === 1) callbacks.onRetrying(true);
+          // Проверяем, является ли ошибка таймаутом клиента (AbortError) или сетевой ошибкой
+          const isRetryableError =
+            (error as Error).name === 'AbortError' ||
+            (error as Error).name === 'TypeError' ||
+            (error as Error).name === 'Failed to fetch';
+
+          if (isRetryableError || attempt === 1) callbacks.onRetrying(true);
 
           console.warn(
             `⚠️ Part ${partNumber} attempt ${attempt} failed:`,
-            error
+            (error as Error).name === 'AbortError'
+              ? 'Client timeout (60s limit)'
+              : error
           );
 
           if (attempt >= MAX_RETRIES) {
