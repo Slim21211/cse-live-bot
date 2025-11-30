@@ -4,7 +4,7 @@ import styles from './fileRenderer.module.scss';
 
 interface FileRendererProps {
   filePath: string;
-  rotation?: number; // 🆕 Угол поворота
+  rotation?: number;
 }
 
 const FileRenderer: React.FC<FileRendererProps> = ({
@@ -12,6 +12,8 @@ const FileRenderer: React.FC<FileRendererProps> = ({
   rotation = 0,
 }) => {
   const [showLightbox, setShowLightbox] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   if (!filePath) {
     return <div className={styles.fallback}>Файл отсутствует</div>;
@@ -30,7 +32,6 @@ const FileRenderer: React.FC<FileRendererProps> = ({
         muted={false}
         preload="metadata"
         className={styles.media}
-        onClick={(e) => e.currentTarget.play().catch(() => {})}
       >
         <track kind="captions" />
         Ваш браузер не поддерживает видео.
@@ -44,21 +45,39 @@ const FileRenderer: React.FC<FileRendererProps> = ({
   ) {
     return (
       <>
-        <img
-          src={url}
-          alt="Работа"
-          className={styles.media}
-          loading="lazy"
-          onClick={() => setShowLightbox(true)}
-          style={{
-            cursor: 'zoom-in',
-            transform: `rotate(${rotation}deg)`, // 🆕 Применяем поворот
-          }}
-        />
-        {showLightbox && (
+        <div className={styles.mediaContainer}>
+          {imageLoading && !imageError && (
+            <div className={styles.loader}>
+              <div className={styles.spinner}></div>
+              <span>Загрузка изображения...</span>
+            </div>
+          )}
+          {imageError && (
+            <div className={styles.fallback}>
+              <span>⚠️ Не удалось загрузить изображение</span>
+            </div>
+          )}
+          <img
+            src={url}
+            alt="Работа"
+            className={`${styles.media} ${imageLoading ? styles.hidden : ''}`}
+            loading="lazy"
+            onClick={() => !imageLoading && setShowLightbox(true)}
+            onLoad={() => setImageLoading(false)}
+            onError={() => {
+              setImageLoading(false);
+              setImageError(true);
+            }}
+            style={{
+              cursor: imageLoading ? 'default' : 'zoom-in',
+              transform: `rotate(${rotation}deg)`,
+            }}
+          />
+        </div>
+        {showLightbox && !imageError && (
           <Lightbox
             imageUrl={url}
-            rotation={rotation} // 🆕 Передаём rotation в lightbox
+            rotation={rotation}
             onClose={() => setShowLightbox(false)}
           />
         )}
@@ -66,9 +85,7 @@ const FileRenderer: React.FC<FileRendererProps> = ({
     );
   }
 
-  // Остальные типы файлов без изменений...
-  // PDF, DOC, и т.д.
-
+  // === PDF ===
   if (ext === 'pdf') {
     return (
       <div className={styles.documentPreview}>
@@ -88,6 +105,7 @@ const FileRenderer: React.FC<FileRendererProps> = ({
     );
   }
 
+  // === DOC, DOCX, TXT, RTF ===
   if (['doc', 'docx', 'txt', 'rtf'].includes(ext)) {
     return (
       <div className={styles.documentPreview}>
@@ -109,6 +127,7 @@ const FileRenderer: React.FC<FileRendererProps> = ({
     );
   }
 
+  // === PPT, PPTX ===
   if (['ppt', 'pptx'].includes(ext)) {
     return (
       <div className={styles.documentPreview}>
@@ -128,6 +147,7 @@ const FileRenderer: React.FC<FileRendererProps> = ({
     );
   }
 
+  // === XLS, XLSX, CSV ===
   if (['xls', 'xlsx', 'csv'].includes(ext)) {
     return (
       <div className={styles.documentPreview}>
@@ -147,6 +167,7 @@ const FileRenderer: React.FC<FileRendererProps> = ({
     );
   }
 
+  // === ZIP, RAR, 7Z, TAR, GZ ===
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
     return (
       <div className={styles.documentPreview}>
@@ -166,6 +187,7 @@ const FileRenderer: React.FC<FileRendererProps> = ({
     );
   }
 
+  // === Другие файлы ===
   return (
     <div className={styles.documentPreview}>
       <div className={styles.documentIcon}>📎</div>
