@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface TelegramUser {
   id: number;
@@ -29,6 +29,7 @@ export const useTelegramUser = () => {
         });
       }
     }
+    // 🆕 ПЕРЕМЕСТИЛИ В КОНЕЦ: Загрузка завершена только после проверки initData
     setIsLoading(false);
   }, []);
 

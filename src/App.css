@@ -32,13 +32,25 @@
   margin-bottom: 24px;
 }
 
-.loading {
+.loading-container {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: start;
+  justify-content: flex-start;
   min-height: 100vh;
+  padding: 20px;
+  text-align: center;
+}
+
+.loading-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.loading-text {
   font-size: 18px;
   color: #666;
+  margin-top: 0;
 }
 
 .contests-grid {
@@ -114,4 +126,72 @@
 
 .admin-link:active {
   transform: translateY(0);
+}
+
+.auth-required,
+.subscription-required {
+  text-align: center;
+  padding: 40px 20px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.auth-required .icon,
+.subscription-required .icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.auth-required h2,
+.subscription-required h2 {
+  color: #4f2c1d;
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.auth-required p,
+.subscription-required p {
+  color: #666;
+  font-size: 16px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.channel-button {
+  display: inline-block;
+  margin: 24px 0 16px;
+  padding: 14px 32px;
+  background: linear-gradient(135deg, #fe5000 0%, #ff6b2c 100%);
+  color: #ffffff;
+  text-decoration: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(254, 80, 0, 0.3);
+}
+
+.channel-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(254, 80, 0, 0.4);
+}
+
+.channel-button:active {
+  transform: translateY(0);
+}
+
+.hint {
+  font-size: 14px;
+  color: #999;
+  font-style: italic;
+}
+
+.voting-footer {
+  min-height: 100px;
+  padding: 20px 0;
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
 }

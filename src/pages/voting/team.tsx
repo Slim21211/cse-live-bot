@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { useTelegramUser } from '../../hooks/useTelegramUser';
 import type { TeamContestSubmission } from '../../types/database';
 import FileRenderer from '../../components/fileRenderer/fileRenderer';
+import ScrollToTopButton from '../../components/scrollToTopButton/scrollToTopButton';
+
 import '../../styles/voting.scss';
 
 interface SubmissionWithRating extends TeamContestSubmission {
@@ -212,6 +214,8 @@ const TeamVoting = () => {
           ))}
         </div>
       )}
+      <div className="voting-footer">Спасибо за участие в голосовании!</div>
+      <ScrollToTopButton />
     </div>
   );
 };

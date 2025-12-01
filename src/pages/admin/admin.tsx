@@ -9,6 +9,7 @@ import type {
 } from '../../types/database';
 import FileRenderer from '../../components/fileRenderer/fileRenderer';
 import '../../styles/admin.scss';
+import ScrollToTopButton from '../../components/scrollToTopButton/scrollToTopButton';
 
 type ContestType = 'child' | 'team' | 'individual';
 
@@ -392,6 +393,7 @@ const Admin = () => {
           ))}
         </div>
       )}
+      <ScrollToTopButton />
 
       {deleteModal.show && (
         <div className="confirm-modal">

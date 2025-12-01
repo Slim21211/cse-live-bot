@@ -2,10 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { useTelegramUser } from './hooks/useTelegramUser';
+import { useChannelSubscription } from './hooks/useChannelSubscription';
 import './App.css';
 
+const CHANNEL_LINK = 'https://t.me/+lN_1vtO95K4xZmUy';
+
 function App() {
-  const { user, isLoading } = useTelegramUser();
+  const { user, isLoading: userLoading } = useTelegramUser();
+  const { isSubscribed, isLoading: subscriptionLoading } =
+    useChannelSubscription(user?.id);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -34,20 +39,88 @@ function App() {
     checkAdmin();
   }, [user]);
 
-  if (isLoading) {
+  // 1. Лоадер для загрузки данных Telegram пользователя
+  if (userLoading) {
     return (
       <div className="app">
-        <div className="loading">Загрузка...</div>
+        <div className="loading-container">
+          {' '}
+          {/* 🆕 Новый класс */}
+          <div className="loading-icon">⏳</div> {/* 🆕 Иконка */}
+          <p className="loading-text">Загрузка данных пользователя...</p>{' '}
+          {/* 🆕 Текст */}
+        </div>
       </div>
     );
   }
 
+  // 2. Если пользователь не авторизован через Telegram
+  if (!user) {
+    return (
+      <div className="app">
+        <div className="container">
+          <div className="auth-required">
+            <div className="icon">🔐</div>
+            <h2>Требуется авторизация</h2>
+            <p>Откройте эту страницу через Telegram бота</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Лоадер для проверки подписки
+  if (subscriptionLoading) {
+    return (
+      <div className="app">
+        <div className="container">
+          <div className="auth-required">
+            <div className="loading-icon">🔍</div>
+            <p className="loading-text">
+              Проверка подписки на канал КСЭ Live...
+            </p>{' '}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Если пользователь не подписан на канал (subscriptionLoading === false)
+  if (isSubscribed === false) {
+    return (
+      <div className="app">
+        <div className="container">
+          <div className="subscription-required">
+            <div className="icon">📢</div>
+            <h2>Подпишитесь на наш канал</h2>
+            <p>
+              Для участия в голосовании необходимо подписаться на канал КСЭ Live
+            </p>
+            <a
+              href={CHANNEL_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="channel-button"
+            >
+              Подписаться на канал
+            </a>
+            <p className="hint">
+              После подписки вернитесь сюда и обновите страницу
+            </p>
+          </div>
+          {user && <p className="user-id">ID: {user.id}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // Главный экран с конкурсами (для подписанных пользователей)
   return (
     <div className="app">
       <div className="container">
         <h1>🎄 Новогодние конкурсы</h1>
 
-        {user && <p className="welcome">Привет, {user.first_name}!</p>}
+        <p className="welcome">Привет, {user.first_name}!</p>
 
         <p className="subtitle">Выбери конкурс для голосования:</p>
 
@@ -78,7 +151,7 @@ function App() {
           </Link>
         )}
 
-        {user && <p className="user-id">ID: {user.id}</p>}
+        <p className="user-id">ID: {user.id}</p>
       </div>
     </div>
   );

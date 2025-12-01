@@ -5,6 +5,7 @@ import { useTelegramUser } from '../../hooks/useTelegramUser';
 import type { ChildContestSubmission } from '../../types/database';
 import FileRenderer from '../../components/fileRenderer/fileRenderer';
 import '../../styles/voting.scss';
+import ScrollToTopButton from '../../components/scrollToTopButton/scrollToTopButton';
 
 interface SubmissionWithRating extends ChildContestSubmission {
   userRating: number;
@@ -225,6 +226,8 @@ const ChildVoting = () => {
           ))}
         </div>
       )}
+      <div className="voting-footer">Спасибо за участие в голосовании!</div>
+      <ScrollToTopButton />
     </div>
   );
 };
