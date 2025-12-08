@@ -22,6 +22,26 @@ const FileRenderer: React.FC<FileRendererProps> = ({
   const url = filePath;
   const ext = (filePath.split('.').pop()?.split('?')[0] || '').toLowerCase();
 
+  // === АУДИО (MP3, WAV, AAC, OGG Audio) ===
+  if (['mp3', 'wav', 'aac', 'oga'].includes(ext)) {
+    return (
+      <div className={styles.documentPreview}>
+        <div className={styles.documentIcon}>🎧</div>
+        <div className={styles.documentInfo}>
+          <span className={styles.documentType}>Аудиозапись</span>
+          <audio
+            src={url}
+            controls
+            preload="metadata"
+            className={styles.audioPlayer}
+          >
+            Ваш браузер не поддерживает аудио.
+          </audio>
+        </div>
+      </div>
+    );
+  }
+
   // === ВИДЕО ===
   if (['mp4', 'mov', 'webm', 'ogg', 'avi', 'mkv'].includes(ext)) {
     return (

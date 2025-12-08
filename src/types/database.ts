@@ -13,6 +13,7 @@ export interface ChildContestSubmission {
   moderated_at?: string;
   moderated_by?: number;
   created_at: string;
+  media_type?: 'audio' | null; // Поле для принудительного рендеринга аудио
 }
 
 export interface TeamContestSubmission {
@@ -28,6 +29,7 @@ export interface TeamContestSubmission {
   moderated_at?: string;
   moderated_by?: number;
   created_at: string;
+  media_type?: 'audio' | null; // Поле для принудительного рендеринга аудио
 }
 
 export interface IndividualContestSubmission {
@@ -43,6 +45,7 @@ export interface IndividualContestSubmission {
   moderated_at?: string;
   moderated_by?: number;
   created_at: string;
+  media_type?: 'audio' | null; // Поле для принудительного рендеринга аудио
 }
 
 export interface Vote {
