@@ -39,7 +39,6 @@ function App() {
     checkAdmin();
   }, [user]);
 
-  // 1. Лоадер для загрузки данных Telegram пользователя
   if (userLoading) {
     return (
       <div className="app">
@@ -54,7 +53,7 @@ function App() {
     );
   }
 
-  // 2. Если пользователь не авторизован через Telegram
+  // Если пользователь не авторизован через Telegram
   if (!user) {
     return (
       <div className="app">
@@ -69,7 +68,6 @@ function App() {
     );
   }
 
-  // 3. Лоадер для проверки подписки
   if (subscriptionLoading) {
     return (
       <div className="app">
@@ -85,8 +83,8 @@ function App() {
     );
   }
 
-  // 4. Если пользователь не подписан на канал (subscriptionLoading === false)
-  if (isSubscribed === false) {
+  // Если пользователь не подписан на канал (и не админ)
+  if (!isSubscribed && !isAdmin) {
     return (
       <div className="app">
         <div className="container">
@@ -146,9 +144,14 @@ function App() {
 
         {/* Кнопка админ-панели — только для админов */}
         {isAdmin && (
-          <Link to="/admin" className="admin-link">
-            🛠 Админ-панель
-          </Link>
+          <>
+            <Link to="/admin" className="admin-link">
+              🛠 Админ-панель
+            </Link>
+            <Link to="/results" className="admin-link results-link">
+              🏆 Результаты голосования
+            </Link>
+          </>
         )}
 
         <p className="user-id">ID: {user.id}</p>

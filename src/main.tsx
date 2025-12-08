@@ -17,6 +17,7 @@ import IndividualVoting from './pages/voting/individual.tsx';
 
 // Админка
 import Admin from './pages/admin/admin.tsx';
+import Results from './pages/results/results.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -36,6 +37,7 @@ createRoot(document.getElementById('root')!).render(
 
         {/* Админка */}
         <Route path="/admin" element={<Admin />} />
+        <Route path="/results" element={<Results />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>
