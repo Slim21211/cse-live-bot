@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Lightbox from '../lightbox/lightbox';
 import styles from './fileRenderer.module.scss';
 
@@ -14,6 +14,8 @@ const FileRenderer: React.FC<FileRendererProps> = ({
   const [showLightbox, setShowLightbox] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   if (!filePath) {
     return <div className={styles.fallback}>Файл отсутствует</div>;
@@ -44,18 +46,73 @@ const FileRenderer: React.FC<FileRendererProps> = ({
 
   // === ВИДЕО ===
   if (['mp4', 'mov', 'webm', 'ogg', 'avi', 'mkv'].includes(ext)) {
+    // Определяем MIME-type для source
+    const getMimeType = (extension: string): string => {
+      const mimeTypes: Record<string, string> = {
+        mp4: 'video/mp4',
+        mov: 'video/quicktime',
+        webm: 'video/webm',
+        ogg: 'video/ogg',
+        avi: 'video/x-msvideo',
+        mkv: 'video/x-matroska',
+      };
+      return mimeTypes[extension] || `video/${extension}`;
+    };
+
     return (
-      <video
-        src={url}
-        controls
-        playsInline
-        muted={false}
-        preload="metadata"
-        className={styles.media}
-      >
-        <track kind="captions" />
-        Ваш браузер не поддерживает видео.
-      </video>
+      <div className={styles.mediaContainer}>
+        {videoError && (
+          <div className={styles.fallback}>
+            <p>⚠️ Ошибка загрузки видео</p>
+            <button
+              onClick={() => {
+                setVideoError(false);
+                if (videoRef.current) {
+                  videoRef.current.load();
+                }
+              }}
+              style={{
+                marginTop: '10px',
+                padding: '8px 16px',
+                background: '#fe5000',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              Попробовать снова
+            </button>
+          </div>
+        )}
+        <video
+          ref={videoRef}
+          key={url} // Принудительный remount при смене URL
+          controls
+          playsInline
+          preload="metadata"
+          className={styles.media}
+          crossOrigin="anonymous"
+          onError={(e) => {
+            console.error('Video error:', e);
+            setVideoError(true);
+          }}
+          onLoadedMetadata={() => {
+            console.log('Video metadata loaded');
+          }}
+          style={{
+            display: videoError ? 'none' : 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            background: '#000',
+          }}
+        >
+          <source src={url} type={getMimeType(ext)} />
+          <track kind="captions" />
+          Ваш браузер не поддерживает видео.
+        </video>
+      </div>
     );
   }
 
