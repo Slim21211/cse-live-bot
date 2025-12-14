@@ -83,8 +83,8 @@ function App() {
     );
   }
 
-  // Если пользователь не подписан на канал (и не админ)
-  if (!isSubscribed && !isAdmin) {
+  // Если пользователь не подписан на канал
+  if (!isSubscribed) {
     return (
       <div className="app">
         <div className="container">
