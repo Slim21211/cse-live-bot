@@ -1,4 +1,5 @@
 import { Markup } from 'telegraf';
+import type { InlineKeyboardButton } from 'telegraf/types';
 
 const webAppUrl = process.env.WEB_APP_URL || 'https://cse-live-bot.vercel.app';
 
@@ -8,6 +9,10 @@ export const topics = {
   question: 'Вопрос',
   idea: 'Идея',
 } as const;
+
+// 🆕 Дата окончания приема работ
+const SUBMISSION_DEADLINE = new Date('2025-12-15T00:00:00+03:00'); // МСК
+const isContestOpen = new Date() < SUBMISSION_DEADLINE;
 
 // Основное меню
 export const topicButtons = Markup.inlineKeyboard([
@@ -30,37 +35,47 @@ export const sendMoreButton = Markup.inlineKeyboard([
 ]);
 
 // Функция для создания кнопок конкурса
-// isAdmin - показывать ли кнопку голосования
 export const getContestButtons = (showVoting: boolean) => {
-  const buttons = [
-    [
-      Markup.button.webApp(
-        '🎄 Детский новогодний конкурс',
-        `${webAppUrl}/child-form`
-      ),
-    ],
-    [
-      Markup.button.webApp(
-        '✨ Командный новогодний конкурс',
-        `${webAppUrl}/team-form`
-      ),
-    ],
-    [
-      Markup.button.webApp(
-        '⭐ Индивидуальный новогодний конкурс',
-        `${webAppUrl}/individual-form`
-      ),
-    ],
-    [Markup.button.callback('📋 Проверить моё участие', 'check_participation')],
-  ];
+  const buttons: InlineKeyboardButton[][] = [];
 
-  // Кнопка голосования только для админов (пока идёт сбор работ)
+  // 🆕 Кнопки для подачи заявок - только если прием открыт
+  if (isContestOpen) {
+    buttons.push(
+      [
+        Markup.button.webApp(
+          '🎄 Детский новогодний конкурс',
+          `${webAppUrl}/child-form`
+        ),
+      ],
+      [
+        Markup.button.webApp(
+          '✨ Командный новогодний конкурс',
+          `${webAppUrl}/team-form`
+        ),
+      ],
+      [
+        Markup.button.webApp(
+          '⭐ Индивидуальный новогодний конкурс',
+          `${webAppUrl}/individual-form`
+        ),
+      ]
+    );
+  }
+
+  // Кнопка проверки участия - всегда доступна
+  buttons.push([
+    Markup.button.callback('📋 Проверить моё участие', 'check_participation'),
+  ]);
+
+  // 🆕 Кнопка голосования - только для админов (пока showVoting = true)
+  // Потом вручную измените на просто: if (true) или уберите условие
   if (showVoting) {
     buttons.push([
       Markup.button.webApp('🗳 Перейти к голосованию', `${webAppUrl}`),
     ]);
   }
 
+  // Кнопка отмены - всегда в конце
   buttons.push([Markup.button.callback('❌ Отмена', 'cancel')]);
 
   return Markup.inlineKeyboard(buttons);

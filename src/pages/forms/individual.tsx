@@ -9,6 +9,8 @@ import {
 } from '../../utils/uploadUtils';
 import '../../styles/form.scss';
 
+const SUBMISSION_DEADLINE = new Date('2025-12-15T00:00:00+03:00'); // МСК
+
 const Individual = () => {
   const [fullName, setFullName] = useState('');
   const [department, setDepartment] = useState('');
@@ -23,6 +25,8 @@ const Individual = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
 
+  const isSubmissionClosed = new Date() >= SUBMISSION_DEADLINE;
+
   useEffect(() => {
     if (window.Telegram?.WebApp) {
       const tg = window.Telegram.WebApp;
@@ -32,6 +36,28 @@ const Individual = () => {
       tg.setHeaderColor('#FFFFFF');
     }
   }, []);
+
+  // Если прием работ закрыт - показываем заглушку
+  if (isSubmissionClosed) {
+    return (
+      <div className="contest-form-container">
+        <div className="contest-form-wrapper">
+          <div className="submission-closed">
+            <div className="icon">🔒</div>
+            <h2>Прием работ завершен</h2>
+            <p>
+              Прием работ на конкурс закончен, идет обработка работ перед
+              началом голосования.
+            </p>
+            <p>
+              Для участия в голосовании вернитесь в бот, нажмите кнопку
+              "Конкурс" и выберите "Перейти к голосованию".
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
