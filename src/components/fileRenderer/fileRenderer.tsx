@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Lightbox from '../lightbox/lightbox';
 import styles from './fileRenderer.module.scss';
 
@@ -16,6 +16,23 @@ const FileRenderer: React.FC<FileRendererProps> = ({
   const [imageError, setImageError] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // 🆕 КРИТИЧЕСКИ ВАЖНО: Сбрасываем состояние при размонтировании
+  useEffect(() => {
+    return () => {
+      setVideoError(false);
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+        videoRef.current.load();
+      }
+    };
+  }, []);
+
+  // 🆕 Сбрасываем состояние при смене файла
+  useEffect(() => {
+    setVideoError(false);
+  }, [filePath]);
 
   if (!filePath) {
     return <div className={styles.fallback}>Файл отсутствует</div>;
@@ -46,96 +63,132 @@ const FileRenderer: React.FC<FileRendererProps> = ({
 
   // === ВИДЕО ===
   if (['mp4', 'mov', 'webm', 'ogg', 'avi', 'mkv'].includes(ext)) {
-    // Определяем MIME-type для source
-    const getMimeType = (extension: string): string => {
-      const mimeTypes: Record<string, string> = {
-        mp4: 'video/mp4',
-        mov: 'video/quicktime',
-        webm: 'video/webm',
-        ogg: 'video/ogg',
-        avi: 'video/x-msvideo',
-        mkv: 'video/x-matroska',
-      };
-      return mimeTypes[extension] || `video/${extension}`;
+    const handleRetry = () => {
+      setVideoError(false);
+
+      // 🆕 Принудительно очищаем video element
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.removeAttribute('src');
+        videoRef.current.load();
+
+        // Небольшая задержка перед загрузкой
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.load();
+          }
+        }, 200);
+      }
     };
+
+    // 🆕 Уникальный URL каждый раз с timestamp
+    const videoUrl = `${url}?v=${Date.now()}`;
 
     return (
       <div className={styles.mediaContainer}>
-        {videoError && (
+        {videoError ? (
           <div className={styles.fallback}>
-            <p>⚠️ Ошибка загрузки видео</p>
+            <p>⚠️ Не удалось загрузить видео</p>
             <button
-              onClick={() => {
-                setVideoError(false);
-                if (videoRef.current) {
-                  videoRef.current.load();
-                }
-              }}
+              onClick={handleRetry}
               style={{
-                marginTop: '10px',
-                padding: '8px 16px',
+                marginTop: '12px',
+                padding: '10px 20px',
                 background: '#fe5000',
                 color: 'white',
                 border: 'none',
-                borderRadius: '6px',
+                borderRadius: '8px',
                 cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
               }}
             >
-              Попробовать снова
+              🔄 Попробовать снова
             </button>
           </div>
+        ) : (
+          <video
+            ref={videoRef}
+            key={videoUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className={styles.media}
+            onError={() => {
+              setVideoError(true);
+            }}
+            onLoadStart={() => {
+              setVideoError(false);
+            }}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              background: '#000',
+            }}
+          >
+            <source src={videoUrl} />
+            <track kind="captions" />
+            Ваш браузер не поддерживает видео.
+          </video>
         )}
-        <video
-          ref={videoRef}
-          key={url} // Принудительный remount при смене URL
-          controls
-          playsInline
-          preload="metadata"
-          className={styles.media}
-          crossOrigin="anonymous"
-          onError={(e) => {
-            console.error('Video error:', e);
-            setVideoError(true);
-          }}
-          onLoadedMetadata={() => {
-            console.log('Video metadata loaded');
-          }}
-          style={{
-            display: videoError ? 'none' : 'block',
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain',
-            background: '#000',
-          }}
-        >
-          <source src={url} type={getMimeType(ext)} />
-          <track kind="captions" />
-          Ваш браузер не поддерживает видео.
-        </video>
       </div>
     );
   }
 
   // === ИЗОБРАЖЕНИЯ ===
   if (
-    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'svg'].includes(ext)
+    [
+      'jpg',
+      'jpeg',
+      'png',
+      'gif',
+      'webp',
+      'avif',
+      'bmp',
+      'svg',
+      'heic',
+      'heif',
+    ].includes(ext)
   ) {
+    // Если ошибка загрузки - показываем как документ
+    if (imageError) {
+      return (
+        <div className={styles.documentPreview}>
+          <div className={styles.documentIcon}>🖼️</div>
+          <div className={styles.documentInfo}>
+            <span className={styles.documentType}>
+              {ext.toUpperCase()} изображение
+            </span>
+            {['heic', 'heif'].includes(ext) && (
+              <p style={{ fontSize: '12px', color: '#999', margin: '8px 0' }}>
+                Формат не поддерживается браузером
+              </p>
+            )}
+            <a
+              href={filePath}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.documentLink}
+            >
+              Открыть файл
+            </a>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <>
         <div className={styles.mediaContainer}>
-          {imageLoading && !imageError && (
+          {imageLoading && (
             <div className={styles.loader}>
               <div className={styles.spinner}></div>
               <span>Загрузка изображения...</span>
             </div>
           )}
-          {imageError && (
-            <div className={styles.fallback}>
-              <span>⚠️ Не удалось загрузить изображение</span>
-            </div>
-          )}
           <img
-            src={url}
+            src={filePath}
             alt="Работа"
             className={`${styles.media} ${imageLoading ? styles.hidden : ''}`}
             loading="lazy"
@@ -151,9 +204,9 @@ const FileRenderer: React.FC<FileRendererProps> = ({
             }}
           />
         </div>
-        {showLightbox && !imageError && (
+        {showLightbox && (
           <Lightbox
-            imageUrl={url}
+            imageUrl={filePath}
             rotation={rotation}
             onClose={() => setShowLightbox(false)}
           />
