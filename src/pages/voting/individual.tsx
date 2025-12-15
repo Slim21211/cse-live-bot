@@ -12,6 +12,16 @@ interface SubmissionWithRating extends IndividualContestSubmission {
   userRating: number;
 }
 
+// 🆕 Функция для перемешивания массива (Fisher-Yates shuffle)
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 const IndividualVoting = () => {
   const { user, isLoading: userLoading } = useTelegramUser();
   const [submissions, setSubmissions] = useState<SubmissionWithRating[]>([]);
@@ -37,8 +47,8 @@ const IndividualVoting = () => {
         const { data: works, error: worksError } = await supabase
           .from('individual_contest')
           .select('*')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
+          .eq('is_active', true);
+        // 🆕 Убрали .order() - будем сортировать сами
 
         if (worksError) throw worksError;
 
@@ -63,7 +73,10 @@ const IndividualVoting = () => {
           userRating: userVotes[work.id] || 1,
         }));
 
-        setSubmissions(submissionsWithRating);
+        // 🆕 ПЕРЕМЕШИВАЕМ работы
+        const shuffledSubmissions = shuffleArray(submissionsWithRating);
+
+        setSubmissions(shuffledSubmissions);
 
         if (user && settings?.voting_enabled && works) {
           for (const work of works) {

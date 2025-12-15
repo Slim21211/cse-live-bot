@@ -11,6 +11,16 @@ interface SubmissionWithRating extends ChildContestSubmission {
   userRating: number;
 }
 
+// 🆕 Функция для перемешивания массива (Fisher-Yates shuffle)
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 const ChildVoting = () => {
   const { user, isLoading: userLoading } = useTelegramUser();
   const [submissions, setSubmissions] = useState<SubmissionWithRating[]>([]);
@@ -38,8 +48,8 @@ const ChildVoting = () => {
         const { data: works, error: worksError } = await supabase
           .from('child_contest')
           .select('*')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
+          .eq('is_active', true);
+        // 🆕 Убрали .order() - будем сортировать сами
 
         if (worksError) throw worksError;
 
@@ -63,10 +73,13 @@ const ChildVoting = () => {
         // Объединяем работы с оценками пользователя
         const submissionsWithRating = (works || []).map((work) => ({
           ...work,
-          userRating: userVotes[work.id] || 1, // По умолчанию 1
+          userRating: userVotes[work.id] || 1,
         }));
 
-        setSubmissions(submissionsWithRating);
+        // 🆕 ПЕРЕМЕШИВАЕМ работы
+        const shuffledSubmissions = shuffleArray(submissionsWithRating);
+
+        setSubmissions(shuffledSubmissions);
 
         // Если пользователь есть и голосование включено - создаём начальные голоса
         if (user && settings?.voting_enabled && works) {
