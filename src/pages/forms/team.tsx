@@ -9,7 +9,7 @@ import {
 } from '../../utils/uploadUtils';
 import '../../styles/form.scss';
 
-const SUBMISSION_DEADLINE = new Date('2025-12-15T00:00:00+03:00'); // МСК
+const SUBMISSION_DEADLINE = new Date('2025-12-15T15:00:00+03:00'); // МСК
 
 const Team = () => {
   const [teamName, setTeamName] = useState('');

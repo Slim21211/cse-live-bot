@@ -12,7 +12,7 @@ interface SubmissionWithRating extends TeamContestSubmission {
   userRating: number;
 }
 
-// 🆕 Функция для перемешивания массива (Fisher-Yates shuffle)
+// Функция для перемешивания массива (Fisher-Yates shuffle)
 const shuffleArray = <T,>(array: T[]): T[] => {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -48,7 +48,6 @@ const TeamVoting = () => {
           .from('team_contest')
           .select('*')
           .eq('is_active', true);
-        // 🆕 Убрали .order() - будем сортировать сами
 
         if (worksError) throw worksError;
 
@@ -73,24 +72,26 @@ const TeamVoting = () => {
           userRating: userVotes[work.id] || 1,
         }));
 
-        // 🆕 ПЕРЕМЕШИВАЕМ работы
+        // ПЕРЕМЕШИВАЕМ работы
         const shuffledSubmissions = shuffleArray(submissionsWithRating);
 
         setSubmissions(shuffledSubmissions);
 
+        // 🆕 Батчинг: Если пользователь есть и голосование включено - создаём начальные голоса
         if (user && settings?.voting_enabled && works) {
-          for (const work of works) {
-            if (!userVotes[work.id]) {
-              await supabase.from('team_votes').upsert(
-                {
-                  submission_id: work.id,
-                  telegram_user_id: user.id,
-                  rating: 1,
-                  updated_at: new Date().toISOString(),
-                },
-                { onConflict: 'submission_id,telegram_user_id' }
-              );
-            }
+          const newVotes = works
+            .filter((work) => !userVotes[work.id])
+            .map((work) => ({
+              submission_id: work.id,
+              telegram_user_id: user.id,
+              rating: 1,
+              updated_at: new Date().toISOString(),
+            }));
+
+          if (newVotes.length > 0) {
+            await supabase.from('team_votes').upsert(newVotes, {
+              onConflict: 'submission_id,telegram_user_id',
+            });
           }
         }
       } catch (err) {

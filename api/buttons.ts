@@ -69,11 +69,9 @@ export const getContestButtons = (showVoting: boolean) => {
 
   // 🆕 Кнопка голосования - только для админов (пока showVoting = true)
   // Потом вручную измените на просто: if (true) или уберите условие
-  if (showVoting) {
-    buttons.push([
-      Markup.button.webApp('🗳 Перейти к голосованию', `${webAppUrl}`),
-    ]);
-  }
+  buttons.push([
+    Markup.button.webApp('🗳 Перейти к голосованию', `${webAppUrl}`),
+  ]);
 
   // Кнопка отмены - всегда в конце
   buttons.push([Markup.button.callback('❌ Отмена', 'cancel')]);
