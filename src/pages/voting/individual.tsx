@@ -12,7 +12,6 @@ interface SubmissionWithRating extends IndividualContestSubmission {
   userRating: number;
 }
 
-// Функция для перемешивания массива (Fisher-Yates shuffle)
 const shuffleArray = <T,>(array: T[]): T[] => {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -40,9 +39,8 @@ const IndividualVoting = () => {
           .eq('contest_type', 'individual')
           .single();
 
-        if (settings) {
-          setVotingEnabled(settings.voting_enabled);
-        }
+        const votingEnabled = settings?.voting_enabled ?? true;
+        setVotingEnabled(votingEnabled);
 
         const { data: works, error: worksError } = await supabase
           .from('individual_contest')
@@ -72,13 +70,11 @@ const IndividualVoting = () => {
           userRating: userVotes[work.id] || 1,
         }));
 
-        // ПЕРЕМЕШИВАЕМ работы
         const shuffledSubmissions = shuffleArray(submissionsWithRating);
-
         setSubmissions(shuffledSubmissions);
 
-        // 🆕 Батчинг: Если пользователь есть и голосование включено - создаём начальные голоса
-        if (user && settings?.voting_enabled && works) {
+        // 🆕 ИСПРАВЛЕННЫЙ БАТЧИНГ с разбивкой на чанки
+        if (user && votingEnabled && works && works.length > 0) {
           const newVotes = works
             .filter((work) => !userVotes[work.id])
             .map((work) => ({
@@ -89,9 +85,28 @@ const IndividualVoting = () => {
             }));
 
           if (newVotes.length > 0) {
-            await supabase.from('individual_votes').upsert(newVotes, {
-              onConflict: 'submission_id,telegram_user_id',
-            });
+            const chunkSize = 50;
+            for (let i = 0; i < newVotes.length; i += chunkSize) {
+              const chunk = newVotes.slice(i, i + chunkSize);
+
+              try {
+                const { error } = await supabase
+                  .from('individual_votes')
+                  .upsert(chunk, {
+                    onConflict: 'submission_id,telegram_user_id',
+                  });
+
+                if (error) {
+                  console.error(`Batch chunk ${i} error:`, error);
+                }
+              } catch (err) {
+                console.error(`Batch chunk ${i} exception:`, err);
+              }
+
+              if (i + chunkSize < newVotes.length) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              }
+            }
           }
         }
       } catch (err) {

@@ -18,8 +18,10 @@ interface SubmissionWithStats {
     | ChildContestSubmission
     | TeamContestSubmission
     | IndividualContestSubmission;
-  average_rating: number;
+  weighted_score: number;
   votes_count: number;
+  effective_weight: number;
+  total_votes: number; // 🆕 Добавлено
   place: number;
 }
 
@@ -55,60 +57,120 @@ const Results = () => {
       const tableName = `${activeTab}_contest`;
       const votesTable = `${activeTab}_votes`;
 
-      // Получаем все активные работы
-      const { data: submissions } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('is_active', true);
+      // SQL запрос для взвешенного подсчета
+      const { data: weightedResults, error } = await supabase.rpc(
+        'get_weighted_results',
+        {
+          p_contest_type: activeTab,
+        }
+      );
 
-      if (!submissions || submissions.length === 0) {
-        setResults([]);
+      if (error || !weightedResults) {
+        console.error('Error fetching weighted results:', error);
+
+        // Fallback на старый метод если функция не работает
+        const { data: submissions } = await supabase
+          .from(tableName)
+          .select('*')
+          .eq('is_active', true);
+
+        if (!submissions || submissions.length === 0) {
+          setResults([]);
+          setLoading(false);
+          return;
+        }
+
+        const submissionsWithStats: SubmissionWithStats[] = await Promise.all(
+          submissions.map(async (submission) => {
+            const { data: votes } = await supabase
+              .from(votesTable)
+              .select('rating')
+              .eq('submission_id', submission.id);
+
+            const votes_count = votes?.length || 0;
+            const weighted_score =
+              votes && votes_count > 0
+                ? votes.reduce((sum, v) => sum + v.rating, 0) / votes_count
+                : 0;
+
+            // 🆕 Подсчет уникальных голосующих
+            const { data: uniqueVoters } = await supabase
+              .from(votesTable)
+              .select('telegram_user_id')
+              .eq('submission_id', submission.id);
+
+            const total_votes = uniqueVoters
+              ? new Set(uniqueVoters.map((v: any) => v.telegram_user_id)).size
+              : 0;
+
+            return {
+              submission,
+              weighted_score,
+              votes_count,
+              effective_weight: votes_count,
+              total_votes, // 🆕
+              place: 0,
+            };
+          })
+        );
+
+        submissionsWithStats.sort(
+          (a, b) => b.weighted_score - a.weighted_score
+        );
+        submissionsWithStats.forEach((item, index) => {
+          item.place = index + 1;
+        });
+
+        const limits: Record<ContestType, number | undefined> = {
+          child: 7,
+          individual: 10,
+          team: undefined,
+        };
+
+        const finalResults = limits[activeTab]
+          ? submissionsWithStats.slice(0, limits[activeTab])
+          : submissionsWithStats;
+
+        setResults(finalResults);
         setLoading(false);
         return;
       }
 
-      // Получаем статистику голосов для каждой работы
-      const submissionsWithStats: SubmissionWithStats[] = await Promise.all(
-        submissions.map(async (submission) => {
-          const { data: votes } = await supabase
-            .from(votesTable)
-            .select('rating')
-            .eq('submission_id', submission.id);
-
-          const votes_count = votes?.length || 0;
-          const average_rating =
-            votes && votes_count > 0
-              ? votes.reduce((sum, v) => sum + v.rating, 0) / votes_count
-              : 0;
+      // Обрабатываем результаты из RPC функции
+      const resultsWithSubmissions: SubmissionWithStats[] = await Promise.all(
+        weightedResults.map(async (result: any) => {
+          const { data: submission } = await supabase
+            .from(tableName)
+            .select('*')
+            .eq('id', result.submission_id)
+            .single();
 
           return {
-            submission,
-            average_rating,
-            votes_count,
-            place: 0, // Место будет установлено позже
+            submission: submission!,
+            weighted_score: result.weighted_score,
+            votes_count: result.votes,
+            effective_weight: result.effective_weight,
+            total_votes: result.total_votes, // 🆕
+            place: 0,
           };
         })
       );
 
-      // Сортируем по средней оценке
-      submissionsWithStats.sort((a, b) => {
-        if (b.average_rating !== a.average_rating) {
-          return b.average_rating - a.average_rating;
-        }
-        // При равной оценке — по количеству голосов
-        return b.votes_count - a.votes_count;
-      });
-
       // Устанавливаем места
-      submissionsWithStats.forEach((item, index) => {
+      resultsWithSubmissions.forEach((item, index) => {
         item.place = index + 1;
       });
 
-      // Для детского конкурса берём только топ-10
-      const finalResults =
-        activeTab === 'child'
-          ? submissionsWithStats.slice(0, 10)
-          : submissionsWithStats;
+      // Ограничения по количеству работ
+      const limits: Record<ContestType, number | undefined> = {
+        child: 7,
+        individual: 10,
+        team: undefined, // Все работы
+      };
+
+      const finalResults = limits[activeTab]
+        ? resultsWithSubmissions.slice(0, limits[activeTab])
+        : resultsWithSubmissions;
 
       setResults(finalResults);
       setLoading(false);
@@ -272,14 +334,14 @@ const Results = () => {
               {/* Статистика */}
               <div className="result-card-stats">
                 <div className="stat">
-                  <span className="stat-label">Средняя оценка</span>
+                  <span className="stat-label">Итоговый результат</span>
                   <span className="stat-value">
-                    ⭐ {item.average_rating.toFixed(2)}
+                    ⭐ {item.weighted_score.toFixed(3)}
                   </span>
                 </div>
                 <div className="stat">
-                  <span className="stat-label">Голосов</span>
-                  <span className="stat-value">{item.votes_count}</span>
+                  <span className="stat-label">Всего голосов</span>
+                  <span className="stat-value">{item.total_votes}</span>
                 </div>
               </div>
             </div>

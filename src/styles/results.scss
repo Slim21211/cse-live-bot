@@ -176,12 +176,24 @@
 
 .result-card-media {
   width: 100%;
-  max-height: 400px;
+  aspect-ratio: 16/9; // 🆕 Фиксированное соотношение сторон
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 16px;
-  background: #f5f5f5;
+  background: #000; // 🆕 Черный фон для видео
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex; // 🆕 Flexbox для центрирования
+  align-items: center;
+  justify-content: center;
+  position: relative; // 🆕 Для позиционирования контента внутри
+
+  // 🆕 Стили для видео и изображений внутри
+  video,
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; // 🆕 Сохраняем пропорции, не обрезаем
+  }
 }
 
 .result-card-info {
@@ -192,6 +204,7 @@
     font-size: 20px;
     margin: 0 0 12px 0;
     font-weight: 600;
+    padding-right: 70px; // 🆕 Отступ для бейджа места
   }
 
   p {
@@ -301,7 +314,7 @@
 
   .result-card-info h3 {
     font-size: 18px;
-    margin-right: 60px; // Чтобы не накладывалось на бейдж
+    padding-right: 60px;
   }
 
   .result-card-stats {

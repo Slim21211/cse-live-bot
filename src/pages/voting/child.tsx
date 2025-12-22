@@ -11,7 +11,6 @@ interface SubmissionWithRating extends ChildContestSubmission {
   userRating: number;
 }
 
-// Функция для перемешивания массива (Fisher-Yates shuffle)
 const shuffleArray = <T,>(array: T[]): T[] => {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -33,18 +32,15 @@ const ChildVoting = () => {
 
     const fetchData = async () => {
       try {
-        // Проверяем статус голосования
         const { data: settings } = await supabase
           .from('contest_settings')
           .select('voting_enabled')
           .eq('contest_type', 'child')
           .single();
 
-        if (settings) {
-          setVotingEnabled(settings.voting_enabled);
-        }
+        const votingEnabled = settings?.voting_enabled ?? true;
+        setVotingEnabled(votingEnabled);
 
-        // Загружаем работы
         const { data: works, error: worksError } = await supabase
           .from('child_contest')
           .select('*')
@@ -52,7 +48,6 @@ const ChildVoting = () => {
 
         if (worksError) throw worksError;
 
-        // Если пользователь есть - загружаем его голоса
         let userVotes: Record<string, number> = {};
 
         if (user) {
@@ -69,19 +64,16 @@ const ChildVoting = () => {
           }
         }
 
-        // Объединяем работы с оценками пользователя
         const submissionsWithRating = (works || []).map((work) => ({
           ...work,
           userRating: userVotes[work.id] || 1,
         }));
 
-        // ПЕРЕМЕШИВАЕМ работы
         const shuffledSubmissions = shuffleArray(submissionsWithRating);
-
         setSubmissions(shuffledSubmissions);
 
-        // 🆕 Батчинг: Если пользователь есть и голосование включено - создаём начальные голоса
-        if (user && settings?.voting_enabled && works) {
+        // 🆕 ИСПРАВЛЕННЫЙ БАТЧИНГ с разбивкой на чанки
+        if (user && votingEnabled && works && works.length > 0) {
           const newVotes = works
             .filter((work) => !userVotes[work.id])
             .map((work) => ({
@@ -92,9 +84,30 @@ const ChildVoting = () => {
             }));
 
           if (newVotes.length > 0) {
-            await supabase.from('child_votes').upsert(newVotes, {
-              onConflict: 'submission_id,telegram_user_id',
-            });
+            // Разбиваем на чанки по 50 для надежности
+            const chunkSize = 50;
+            for (let i = 0; i < newVotes.length; i += chunkSize) {
+              const chunk = newVotes.slice(i, i + chunkSize);
+
+              try {
+                const { error } = await supabase
+                  .from('child_votes')
+                  .upsert(chunk, {
+                    onConflict: 'submission_id,telegram_user_id',
+                  });
+
+                if (error) {
+                  console.error(`Batch chunk ${i} error:`, error);
+                }
+              } catch (err) {
+                console.error(`Batch chunk ${i} exception:`, err);
+              }
+
+              // Небольшая задержка между чанками
+              if (i + chunkSize < newVotes.length) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              }
+            }
           }
         }
       } catch (err) {
@@ -111,7 +124,6 @@ const ChildVoting = () => {
   const handleRating = async (submissionId: string, rating: number) => {
     if (!user || !votingEnabled) return;
 
-    // Оптимистичное обновление UI
     setSubmissions((prev) =>
       prev.map((s) =>
         s.id === submissionId ? { ...s, userRating: rating } : s
@@ -132,7 +144,6 @@ const ChildVoting = () => {
       if (error) throw error;
     } catch (err) {
       console.error('Vote error:', err);
-      // Откатываем при ошибке
       setSubmissions((prev) =>
         prev.map((s) =>
           s.id === submissionId ? { ...s, userRating: s.userRating } : s
