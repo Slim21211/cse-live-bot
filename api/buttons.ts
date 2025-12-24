@@ -10,9 +10,8 @@ export const topics = {
   idea: 'Идея',
 } as const;
 
-// 🆕 Дата окончания приема работ
-const SUBMISSION_DEADLINE = new Date('2025-12-15T00:00:00+03:00'); // МСК
-const isContestOpen = new Date() < SUBMISSION_DEADLINE;
+const RESULTS_DEADLINE = new Date('2025-12-26T10:00:00+03:00');
+const isResultsOpen = new Date() > RESULTS_DEADLINE;
 
 // Основное меню
 export const topicButtons = Markup.inlineKeyboard([
@@ -34,46 +33,15 @@ export const sendMoreButton = Markup.inlineKeyboard([
   [Markup.button.callback('Отправить ещё', 'send_more')],
 ]);
 
-// Функция для создания кнопок конкурса
 export const getContestButtons = (showVoting: boolean) => {
   const buttons: InlineKeyboardButton[][] = [];
 
-  // 🆕 Кнопки для подачи заявок - только если прием открыт
-  if (isContestOpen) {
-    buttons.push(
-      [
-        Markup.button.webApp(
-          '🎄 Детский новогодний конкурс',
-          `${webAppUrl}/child-form`
-        ),
-      ],
-      [
-        Markup.button.webApp(
-          '✨ Командный новогодний конкурс',
-          `${webAppUrl}/team-form`
-        ),
-      ],
-      [
-        Markup.button.webApp(
-          '⭐ Индивидуальный новогодний конкурс',
-          `${webAppUrl}/individual-form`
-        ),
-      ]
-    );
+  if (isResultsOpen || showVoting) {
+    buttons.push([
+      Markup.button.webApp('Результаты конкурса', `${webAppUrl}/results`),
+    ]);
   }
 
-  // Кнопка проверки участия - всегда доступна
-  buttons.push([
-    Markup.button.callback('📋 Проверить моё участие', 'check_participation'),
-  ]);
-
-  // 🆕 Кнопка голосования - только для админов (пока showVoting = true)
-  // Потом вручную измените на просто: if (true) или уберите условие
-  buttons.push([
-    Markup.button.webApp('🗳 Перейти к голосованию', `${webAppUrl}`),
-  ]);
-
-  // Кнопка отмены - всегда в конце
   buttons.push([Markup.button.callback('❌ Отмена', 'cancel')]);
 
   return Markup.inlineKeyboard(buttons);

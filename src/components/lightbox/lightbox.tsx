@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './lightbox.module.scss';
 
 interface LightboxProps {
@@ -23,7 +24,6 @@ const Lightbox = ({ imageUrl, rotation = 0, onClose }: LightboxProps) => {
     };
   }, [onClose]);
 
-  // Если поворот 90° или 270°, нужно поменять max-width и max-height местами
   const isRotated90or270 = rotation % 180 !== 0;
 
   const imageStyle: React.CSSProperties = {
@@ -32,7 +32,8 @@ const Lightbox = ({ imageUrl, rotation = 0, onClose }: LightboxProps) => {
     maxHeight: isRotated90or270 ? '100vw' : '100%',
   };
 
-  return (
+  // Рендерим напрямую в body через Portal
+  return createPortal(
     <div className={styles.lightbox} onClick={onClose}>
       <button className={styles.closeButton} onClick={onClose}>
         ×
@@ -44,7 +45,8 @@ const Lightbox = ({ imageUrl, rotation = 0, onClose }: LightboxProps) => {
         style={imageStyle}
         onClick={(e) => e.stopPropagation()}
       />
-    </div>
+    </div>,
+    document.body
   );
 };
 

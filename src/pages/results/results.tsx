@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { useTelegramUser } from '../../hooks/useTelegramUser';
 import type {
   ChildContestSubmission,
   TeamContestSubmission,
@@ -25,29 +24,28 @@ interface SubmissionWithStats {
   place: number;
 }
 
+const plural = (
+  number: number,
+  one: string,
+  few: string,
+  many: string
+): string => {
+  const mod10 = number % 10;
+  const mod100 = number % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+    return few;
+  }
+  return many;
+};
+
 const Results = () => {
-  const { user, isLoading: userLoading } = useTelegramUser();
-  const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<ContestType>('child');
   const [results, setResults] = useState<SubmissionWithStats[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Проверяем админа
-  useEffect(() => {
-    if (!user) return;
-
-    const checkAdmin = async () => {
-      const { data } = await supabase
-        .from('admins')
-        .select('id')
-        .eq('telegram_user_id', user.id)
-        .single();
-
-      setIsAdmin(!!data);
-    };
-
-    checkAdmin();
-  }, [user]);
 
   // Загружаем результаты
   useEffect(() => {
@@ -201,11 +199,14 @@ const Results = () => {
 
     if (activeTab === 'child') {
       const child = submission as ChildContestSubmission;
+      const ageWord = plural(child.child_age, 'год', 'года', 'лет');
+
       return (
         <>
           <h3>{child.title}</h3>
           <p>
-            <strong>Автор:</strong> {child.child_name}, {child.child_age} лет
+            <strong>Автор:</strong> {child.child_name}, {child.child_age}{' '}
+            {ageWord}
           </p>
           <p>
             <strong>Родитель:</strong> {child.full_name}
@@ -247,29 +248,6 @@ const Results = () => {
       );
     }
   };
-
-  if (userLoading) {
-    return (
-      <div className="results-container">
-        <div className="loading">Загрузка...</div>
-      </div>
-    );
-  }
-
-  if (!user || !isAdmin) {
-    return (
-      <div className="results-container">
-        <Link to="/" className="back-link">
-          ← На главную
-        </Link>
-        <div className="no-access">
-          <div className="icon">🔐</div>
-          <h2>Доступ запрещён</h2>
-          <p>Результаты будут доступны после завершения голосования.</p>
-        </div>
-      </div>
-    );
-  }
 
   const tabLabels: Record<ContestType, string> = {
     child: '🎄 Детский',
