@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import type {
   ChildContestSubmission,
@@ -20,7 +19,7 @@ interface SubmissionWithStats {
   weighted_score: number;
   votes_count: number;
   effective_weight: number;
-  total_votes: number; // 🆕 Добавлено
+  total_votes: number;
   place: number;
 }
 
@@ -91,7 +90,6 @@ const Results = () => {
                 ? votes.reduce((sum, v) => sum + v.rating, 0) / votes_count
                 : 0;
 
-            // 🆕 Подсчет уникальных голосующих
             const { data: uniqueVoters } = await supabase
               .from(votesTable)
               .select('telegram_user_id')
@@ -106,7 +104,7 @@ const Results = () => {
               weighted_score,
               votes_count,
               effective_weight: votes_count,
-              total_votes, // 🆕
+              total_votes,
               place: 0,
             };
           })
@@ -121,8 +119,8 @@ const Results = () => {
 
         const limits: Record<ContestType, number | undefined> = {
           child: 7,
-          individual: 10,
-          team: undefined,
+          individual: undefined, // 🆕 Показываем все
+          team: undefined, // 🆕 Показываем все
         };
 
         const finalResults = limits[activeTab]
@@ -148,7 +146,7 @@ const Results = () => {
             weighted_score: result.weighted_score,
             votes_count: result.votes,
             effective_weight: result.effective_weight,
-            total_votes: result.total_votes, // 🆕
+            total_votes: result.total_votes,
             place: 0,
           };
         })
@@ -159,10 +157,10 @@ const Results = () => {
         item.place = index + 1;
       });
 
-      // Ограничения по количеству работ
+      // 🆕 Ограничения по количеству работ
       const limits: Record<ContestType, number | undefined> = {
-        child: 7,
-        individual: 10,
+        child: 7, // Топ-7 в детском
+        individual: undefined, // Все работы
         team: undefined, // Все работы
       };
 
@@ -177,20 +175,33 @@ const Results = () => {
     fetchResults();
   }, [activeTab]);
 
-  // Функция для получения класса медали
+  // 🆕 Функция для получения класса медали (только золото для 1 места)
   const getMedalClass = (place: number): string => {
     if (place === 1) return 'gold';
-    if (place === 2) return 'silver';
-    if (place === 3) return 'bronze';
     return '';
   };
 
-  // Функция для получения эмодзи медали
-  const getMedalEmoji = (place: number): string => {
+  // 🆕 Функция для получения badge (медаль, подарок или номер)
+  const getPlaceBadge = (place: number, contestType: ContestType): string => {
+    // Первое место — всегда золотая медаль
     if (place === 1) return '🥇';
-    if (place === 2) return '🥈';
-    if (place === 3) return '🥉';
-    return '';
+
+    // Детский конкурс: 2-7 место = подарок
+    if (contestType === 'child' && place >= 2 && place <= 7) {
+      return '🎁';
+    }
+
+    // Индивидуальный и командный: 2-4 место = подарок
+    if (
+      (contestType === 'individual' || contestType === 'team') &&
+      place >= 2 &&
+      place <= 4
+    ) {
+      return '🎁';
+    }
+
+    // Остальные — просто номер места
+    return `#${place}`;
   };
 
   // Рендер информации о работе
@@ -257,10 +268,6 @@ const Results = () => {
 
   return (
     <div className="results-container">
-      <Link to="/" className="back-link">
-        ← На главную
-      </Link>
-
       <div className="results-header">
         <h1>🏆 Результаты голосования</h1>
         <p className="subtitle">Победители новогодних конкурсов</p>
@@ -291,9 +298,9 @@ const Results = () => {
               key={item.submission.id}
               className={`result-card ${getMedalClass(item.place)}`}
             >
-              {/* Место */}
+              {/* 🆕 Место (медаль, подарок или номер) */}
               <div className="place-badge">
-                {getMedalEmoji(item.place) || `#${item.place}`}
+                {getPlaceBadge(item.place, activeTab)}
               </div>
 
               {/* Медиа */}

@@ -325,3 +325,28 @@
     font-size: 18px;
   }
 }
+
+.place-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  min-width: 56px; // 🆕 min-width вместо width для номеров места
+  height: 56px;
+  padding: 0 8px; // 🆕 Padding для номеров
+  background: #fe5000;
+  border-radius: 50%; // 🆕 Для цифр будет овал при необходимости
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  animation: pulse 2s infinite;
+
+  // 🆕 Для номеров места (не эмодзи)
+  &:not(:has(img)) {
+    font-size: 20px; // Меньше шрифт для цифр
+  }
+}
